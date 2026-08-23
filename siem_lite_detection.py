@@ -19,15 +19,16 @@ ACTION_WEIGHTS = {
     'RevokeSecurityGroupEgress': 80,
 }
 
+# Function to determine the severity level based on the score. The severity levels are categorized as follows:
 def get_severity(score):
     if score >= 600:
-        return "CRITICO"
+        return "CRITICAL"
     elif score >= 400:
-        return "ALTO"
+        return "HIGH"
     elif score >= 200:
-        return "MEDIO"
+        return "MEDIUM"
     elif score >= 1:
-        return "BAJO"
+        return "LOW"
 
 # Declaring the DynamoDB resource
 dynamodb = boto3.resource('dynamodb')
@@ -47,41 +48,79 @@ def lambda_handler(event, context):
         userName = event['detail']['userIdentity']['userName']
         userARN = event['detail']['userIdentity']['arn']
 
-        # Checks if the event contains 'errorCode' in its detail, this is important because it indicates from which rule the event comes from.
+        # Initialize the DynamoDB table
+        table_name = os.environ.get('THRESHOLD_TABLE_NAME')
+        table = dynamodb.Table(table_name)
+
         if 'errorCode' in event['detail']:
             error_code = event['detail']['errorCode']
-            
-            # Initialize the DynamoDB table
-            table_name = os.environ.get('THRESHOLD_TABLE_NAME')
-            table = dynamodb.Table(table_name)
 
-            response = table.update_item(
-                Key = {
-                    'userIdentity': userARN,
-                    'sourceIPAddress': source_ip
+            item_key = {
+                'userIdentity': userARN,
+                'sourceIPAddress': source_ip
+            }
+
+            # Step 1: ensure actionCounts exists as an empty map.
+            table.update_item(
+                Key=item_key,
+                UpdateExpression='SET #aC = if_not_exists(#aC, :empty_map)',
+                ExpressionAttributeNames={
+                    '#aC': 'actionCounts'
                 },
-                UpdateExpression = (
-                    '#gC = if_not_exists(#gC, :increment) + :increment, '
+                ExpressionAttributeValues={
+                    ':empty_map': {}
+                }
+            )
+
+            # Step 2: ensure actionCounts.<eventName> exists as an empty map.
+            table.update_item(
+                Key=item_key,
+                UpdateExpression='SET #aC.#eN = if_not_exists(#aC.#eN, :empty_map)',
+                ExpressionAttributeNames={
+                    '#aC': 'actionCounts', '#eN': event_name
+                },
+                ExpressionAttributeValues={
+                    ':empty_map': {}
+                }
+            )
+
+            # Step 3: now that the full path exists, update global score, per-action
+            # count, ttl, and firstSeen/lastSeen in a single call.
+            response = table.update_item(
+                Key=item_key,
+                UpdateExpression=(
+                    'SET '
+                    '#gC = if_not_exists(#gC, :zero) + :increment, '
                     '#t = :ttl_value, '
-                    # Update the action count for the specific event name. If the action count does not exist, it initializes it to 1 and then increments it by 1.  
-                    '#aC.#eN.#c = if_not_exists(#aC.#eN.#c, :one) + :one'
+                    '#aC.#eN.#c = if_not_exists(#aC.#eN.#c, :zero) + :one, '
+                    '#fS = if_not_exists(#fS, :event_time), '
+                    '#lS = :event_time'
                 ),
-                ExpressionAttributeNames = {
+                ExpressionAttributeNames={
                     '#eN': event_name,
                     '#aC': 'actionCounts',
                     '#gC': 'globalCounts',
                     '#c': 'count',
                     '#t': 'ttl',
+                    '#fS': 'firstSeen',
+                    '#lS': 'lastSeen'
                 },
-                ExpressionAttributeValues = {
-                    # Increment the global count for the user and source IP by the weight of the action. If the action is not defined in ACTION_WEIGHTS, it defaults to 0.
-                    ':increment': ACTION_WEIGHTS.get(event_name, 0),
+                ExpressionAttributeValues={
+                    ':zero': 0,
                     ':one': 1,
-                    ':ttl_value': int(time.time()) + (15 * 60)
-                },
+                    ':increment': ACTION_WEIGHTS.get(event_name, 40),
+                    ':ttl_value': int(time.time()) + (15 * 60),
+                    ':event_time': int(time.time())
+                }
             )
 
-
+        else:
+            response = table.update_item(
+                Key={
+                    'userIdentity': userARN,
+                    'sourceIPAddress': source_ip
+                }
+            )
 
     except Exception as e:
         logger.error(f"Error in lambda_handler: {str(e)}")
