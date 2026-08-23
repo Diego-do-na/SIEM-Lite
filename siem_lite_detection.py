@@ -19,6 +19,9 @@ ACTION_WEIGHTS = {
     'RevokeSecurityGroupEgress': 80,
 }
 
+# Define a set of critical configuration events that are considered high-risk or sensitive. These events may require special attention or monitoring due to their potential impact on the security and integrity of the AWS environment.
+CRITICAL_CONFIG_EVENTS = {'StopLogging', 'DeleteTrail', 'DisableKey', 'ScheduleKeyDeletion'}
+
 # Function to determine the severity level based on the score. The severity levels are categorized as follows:
 def get_severity(score):
     if score >= 600:
@@ -62,24 +65,25 @@ def lambda_handler(event, context):
 
             # Step 1: ensure actionCounts exists as an empty map.
             table.update_item(
-                Key=item_key,
-                UpdateExpression='SET #aC = if_not_exists(#aC, :empty_map)',
-                ExpressionAttributeNames={
+                Key = item_key,
+                UpdateExpression = 'SET #aC = if_not_exists(#aC, :empty_map)',
+                ExpressionAttributeNames = {
                     '#aC': 'actionCounts'
                 },
-                ExpressionAttributeValues={
+                ExpressionAttributeValues = {
                     ':empty_map': {}
                 }
             )
 
             # Step 2: ensure actionCounts.<eventName> exists as an empty map.
             table.update_item(
-                Key=item_key,
-                UpdateExpression='SET #aC.#eN = if_not_exists(#aC.#eN, :empty_map)',
-                ExpressionAttributeNames={
-                    '#aC': 'actionCounts', '#eN': event_name
+                Key = item_key,
+                UpdateExpression = 'SET #aC.#eN = if_not_exists(#aC.#eN, :empty_map)',
+                ExpressionAttributeNames = {
+                    '#aC': 'actionCounts', 
+                    '#eN': event_name
                 },
-                ExpressionAttributeValues={
+                ExpressionAttributeValues = {
                     ':empty_map': {}
                 }
             )
@@ -87,8 +91,8 @@ def lambda_handler(event, context):
             # Step 3: now that the full path exists, update global score, per-action
             # count, ttl, and firstSeen/lastSeen in a single call.
             response = table.update_item(
-                Key=item_key,
-                UpdateExpression=(
+                Key = item_key,
+                UpdateExpression = (
                     'SET '
                     '#gC = if_not_exists(#gC, :zero) + :increment, '
                     '#t = :ttl_value, '
@@ -96,7 +100,7 @@ def lambda_handler(event, context):
                     '#fS = if_not_exists(#fS, :event_time), '
                     '#lS = :event_time'
                 ),
-                ExpressionAttributeNames={
+                ExpressionAttributeNames = {
                     '#eN': event_name,
                     '#aC': 'actionCounts',
                     '#gC': 'globalCounts',
@@ -105,7 +109,7 @@ def lambda_handler(event, context):
                     '#fS': 'firstSeen',
                     '#lS': 'lastSeen'
                 },
-                ExpressionAttributeValues={
+                ExpressionAttributeValues = {
                     ':zero': 0,
                     ':one': 1,
                     ':increment': ACTION_WEIGHTS.get(event_name, 40),
@@ -113,15 +117,76 @@ def lambda_handler(event, context):
                     ':event_time': int(time.time())
                 }
             )
-
+            
         else:
-            response = table.update_item(
-                Key={
-                    'userIdentity': userARN,
-                    'sourceIPAddress': source_ip
+            item_key = {
+                'userIdentity': userARN,
+                'sourceIPAddress': source_ip
+            }
+
+            # Step 1: ensure configChanges exists as an empty map.
+            table.update_item(
+                Key = item_key,
+                UpdateExpression = 'SET #cC = if_not_exists(#cC, :empty_map)',
+                ExpressionAttributeNames = {
+                    '#cC': 'configChanges',
+                },
+                ExpressionAttributeValues = {
+                    ':empty_map': {}
                 }
             )
 
+            # Step 2: ensure configChanges.<eventName> exists as an empty map.
+            table.update_item(
+                Key = item_key,
+                UpdateExpression = 'SET #cC.#eN = if_not_exists(#cC.#eN, :empty_map)',
+                ExpressionAttributeNames = {
+                    '#cC': 'configChanges', 
+                    '#eN': event_name,
+                },
+                ExpressionAttributeValues = {
+                    ':empty_map': {}
+                }
+            )
+
+            # Step 3: update count, ttl, and firstSeen/lastSeen. Only critical config
+            # events also contribute to the real-time global score.
+            is_critical = event_name in CRITICAL_CONFIG_EVENTS
+
+            global_score_clause = '#gC = if_not_exists(#gC, :zero) + :increment, ' if is_critical else ''
+
+            expression_names = {
+                '#eN': event_name,
+                '#cC': 'configChanges',
+                '#c': 'count',
+                '#t': 'ttl',
+                '#fS': 'firstSeen',
+                '#lS': 'lastSeen'
+            }
+            expression_values = {
+                ':zero': 0,
+                ':one': 1,
+                ':ttl_value': int(time.time()) + (15 * 60),
+                ':event_time': int(time.time())
+            }
+
+            if is_critical:
+                expression_names['#gC'] = 'globalCounts'
+                expression_values[':increment'] = ACTION_WEIGHTS.get(event_name, 0)
+
+            response = table.update_item(
+                Key = item_key,
+                UpdateExpression = (
+                    'SET '
+                    + global_score_clause +
+                    '#t = :ttl_value, '
+                    '#cC.#eN.#c = if_not_exists(#cC.#eN.#c, :zero) + :one, '
+                    '#fS = if_not_exists(#fS, :event_time), '
+                    '#lS = :event_time'
+                ),
+                ExpressionAttributeNames = expression_names,
+                ExpressionAttributeValues = expression_values
+            )
     except Exception as e:
         logger.error(f"Error in lambda_handler: {str(e)}")
         return {
