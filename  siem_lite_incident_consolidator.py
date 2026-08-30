@@ -8,7 +8,7 @@ from boto3.dynamodb.types import TypeDeserializer
 deserializer = TypeDeserializer()
 dynamodb = boto3.resource('dynamodb')
 
-bedrock_runtime = boto3.client('bedrock-runtime', config=boto3.session.Config(
+bedrock_runtime = boto3.client('bedrock-runtime', region_name='us-west-2', config=boto3.session.Config(
     connect_timeout=5,
     read_timeout=15,
     retries={'max_attempts': 1}
@@ -32,6 +32,10 @@ ACTION_WEIGHTS = {
     'AuthorizeSecurityGroupEgress': 120,
     'RevokeSecurityGroupEgress': 80,
 }
+
+# Same critical set as the detection Lambda — only these contribute to
+# globalCounts on the configChanges (Rule 1) branch.
+CRITICAL_CONFIG_EVENTS = {'StopLogging', 'DeleteTrail', 'DisableKey', 'ScheduleKeyDeletion'}
 
 MITRE_MAP = {
     'StopLogging': 'T1562.008',
@@ -81,6 +85,29 @@ def get_mitre_techniques(item):
 
     return sorted(techniques)
 
+def get_action_score_breakdown(item):
+    """Build a flat {action_name: score} breakdown, mirroring exactly how
+    siem_lite_detection accumulates globalCounts:
+    - actionCounts (denied access) always contributes, fallback weight 40.
+    - configChanges only contributes if the action is critical; non-critical
+      config changes are excluded entirely, since they never added to
+      globalCounts in the first place.
+    """
+    breakdown = {}
+
+    for action_name, details in item.get('actionCounts', {}).items():
+        count = int(details.get('count', 0))
+        weight = ACTION_WEIGHTS.get(action_name, 40)
+        breakdown[action_name] = weight * count
+
+    for action_name, details in item.get('configChanges', {}).items():
+        if action_name in CRITICAL_CONFIG_EVENTS:
+            count = int(details.get('count', 0))
+            weight = ACTION_WEIGHTS.get(action_name, 0)
+            breakdown[action_name] = weight * count
+
+    return breakdown
+
 def build_prompt(severity, duration, mitre_techniques, action_counts, config_changes, source_ip):
     actions_summary = ", ".join(
         f"{action} (x{details.get('count', 0)})"
@@ -89,17 +116,16 @@ def build_prompt(severity, duration, mitre_techniques, action_counts, config_cha
 
     techniques_summary = ", ".join(mitre_techniques) if mitre_techniques else "sin técnica mapeada"
 
-    return f"""Eres un analista de seguridad revisando un incidente ya clasificado por un sistema de detección automatizado. Genera un informe de 4 a 6 oraciones con esta estructura exacta, sin encabezados ni viñetas:
+    return f"""Eres un analista de seguridad revisando un incidente ya clasificado por un sistema de detección automatizado. Genera un informe breve con esta estructura, en **tres párrafos separados y cortos** (1-2 oraciones cada uno, sin encabezados ni viñetas):
 
-1. Qué ocurrió (resume el patrón de actividad, no listes cada evento).
-2. Por qué es notable dado el contexto (severidad, duración, volumen).
-3. Qué técnica de amenaza representa (usa el nombre de la técnica MITRE, no solo el código).
-4. Una recomendación concreta y accionable para el equipo de seguridad.
+Párrafo 1: qué ocurrió (resume el patrón de actividad, no listes cada evento).
+Párrafo 2: por qué es notable dado el contexto (severidad, duración, volumen) y qué técnica de amenaza representa (usa el nombre de la técnica MITRE, no solo el código).
+Párrafo 3: una recomendación concreta y accionable para el equipo de seguridad.
 
 Reglas estrictas:
-- No repitas números crudos sin interpretarlos (ej. no digas "hubo 5 eventos", di qué implica esa frecuencia).
+- No repitas números crudos sin interpretarlos.
 - No inventes información que no esté en los datos.
-- Sé específico al patrón de este incidente, no genérico.
+- Sé conciso: prioriza precisión sobre extensión.
 
 Datos del incidente:
 - Severidad: {severity}
@@ -139,6 +165,7 @@ def lambda_handler(event, context):
             severity = get_severity(global_score)
 
             mitre_techniques = get_mitre_techniques(item)
+            action_score_breakdown = get_action_score_breakdown(item)
 
             incident_id = str(uuid.uuid4())
 
@@ -158,6 +185,7 @@ def lambda_handler(event, context):
                     'mitreTechniques': mitre_techniques,
                     'actionCounts': item.get('actionCounts', {}),
                     'configChanges': item.get('configChanges', {}),
+                    'actionScores': action_score_breakdown,
                     'insights': insights
                 }
             )
