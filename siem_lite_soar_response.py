@@ -25,6 +25,33 @@ def lambda_handler(event, context):
         user_arn = event['user_arn']
         source_ip = event['source_ip']
 
+        # Get a handle to Table 1 once, reused below for both the read and the final write.
+        table_name = os.environ.get('THRESHOLD_TABLE_NAME')
+        table = dynamodb.Table(table_name)
+
+        # Read the current item so the defensive actions below can inspect prior state (e.g. previous defensiveActions, threshold counters) before deciding/recording anything.
+        current_item = table.get_item(
+            Key={
+                'userIdentity': user_arn,
+                'sourceIPAddress': source_ip
+            }
+        ).get('Item', {})
+
+        # Avoid repeating the same defensive action if it was already recorded for this userIdentity/sourceIPAddress pair.
+        existing_actions = current_item.get('defensiveActions', [])
+        already_handled = False
+        for a in existing_actions:
+            if a.get('action') == event_name:
+                already_handled = True
+                break
+
+        if already_handled:
+            logger.info(f"Defensive action for {event_name} already handled for user {user_arn} from IP {source_ip}. Skipping.")
+            return {
+                'message': 'Defensive action already handled',
+                'record': None
+            }
+
         # StopLogging defensive action: If the event is a StopLogging action, we attempt to restart logging for the specified trail.
         if event_name == "StopLogging":
             try:
@@ -66,8 +93,6 @@ def lambda_handler(event, context):
             'timestamp': int(time.time())
         }
 
-        table_name = os.environ.get('THRESHOLD_TABLE_NAME')
-        table = dynamodb.Table(table_name)
         response = table.update_item(
             Key={
                 'userIdentity': user_arn,
