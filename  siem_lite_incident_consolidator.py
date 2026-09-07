@@ -90,8 +90,8 @@ def get_action_score_breakdown(item):
     siem_lite_detection accumulates globalCounts:
     - actionCounts (denied access) always contributes, fallback weight 40.
     - configChanges only contributes if the action is critical; non-critical
-      config changes are excluded entirely, since they never added to
-      globalCounts in the first place.
+    config changes are excluded entirely, since they never added to
+    globalCounts in the first place.
     """
     breakdown = {}
 
