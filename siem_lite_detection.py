@@ -26,6 +26,9 @@ dynamodb = boto3.resource('dynamodb')
 alert_topic_arn = os.environ.get('ALERT_TOPIC_ARN')
 sns = boto3.client('sns')
 
+# Initialize the Lambda client for the SOAR response functionality.
+lambda_client = boto3.client('lambda')
+
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
@@ -42,7 +45,7 @@ def get_severity(score):
     elif score >= 1:
         return "LOW"
 
-def process_severity(response, user_arn, source_ip):
+def process_severity(response, user_arn, source_ip, event_name, trail_name, key_id):
     updated_attrs = response.get('Attributes', {})
     global_score = updated_attrs.get('globalCounts')
 
@@ -74,6 +77,21 @@ def process_severity(response, user_arn, source_ip):
         )
         logger.info("SNS alert published successfully")
 
+        # SOAR Response
+        if event_name in CRITICAL_CONFIG_EVENTS:
+            lambda_client.invoke(
+                FunctionName=os.environ.get('SOAR_RESPONSE_FUNCTION_NAME'),
+                InvocationType='Event',
+                Payload=json.dumps({
+                    'user_arn': user_arn,
+                    'source_ip': source_ip,
+                    'event_name': event_name,
+                    'trail_name': trail_name,
+                    'key_id': key_id
+                    })
+            )
+
+
 def lambda_handler(event, context):
     try:
         # Extracting relevant information from the event
@@ -85,6 +103,12 @@ def lambda_handler(event, context):
         source_ip = event['detail']['sourceIPAddress']
         userName = event['detail']['userIdentity']['userName']
         userARN = event['detail']['userIdentity']['arn']
+
+        # Trail Name if required for StopLogging
+        trail_name = event['detail'].get('requestParameters', {}).get('name')
+
+        # KeyId if required for DisableKey and ScheduleKeyDeletion
+        key_id = event['detail'].get('requestParameters', {}).get('keyId')
 
         table_name = os.environ.get('THRESHOLD_TABLE_NAME')
         table = dynamodb.Table(table_name)
@@ -215,7 +239,7 @@ def lambda_handler(event, context):
                 ReturnValues='UPDATED_NEW'
             )
 
-        process_severity(response, userARN, source_ip)
+        process_severity(response, userARN, source_ip, event_name, trail_name, key_id)
 
     except Exception as e:
         logger.error(f"Error in lambda_handler: {str(e)}")
