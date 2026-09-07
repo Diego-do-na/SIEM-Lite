@@ -108,7 +108,7 @@ def get_action_score_breakdown(item):
 
     return breakdown
 
-def build_prompt(severity, duration, mitre_techniques, action_counts, config_changes, source_ip):
+def build_prompt(severity, duration, mitre_techniques, action_counts, config_changes, source_ip, defensive_actions):
     actions_summary = ", ".join(
         f"{action} (x{details.get('count', 0)})"
         for action, details in {**action_counts, **config_changes}.items()
@@ -116,11 +116,19 @@ def build_prompt(severity, duration, mitre_techniques, action_counts, config_cha
 
     techniques_summary = ", ".join(mitre_techniques) if mitre_techniques else "sin técnica mapeada"
 
+    if defensive_actions:
+        defensive_summary = "; ".join(
+            f"{a['action']} ({'exitosa' if a.get('success') else 'fallida'}: {a.get('detail', 'sin detalle')})"
+            for a in defensive_actions
+        )
+    else:
+        defensive_summary = "ninguna acción automática ejecutada"
+
     return f"""Eres un analista de seguridad revisando un incidente ya clasificado por un sistema de detección automatizado. Genera un informe breve con esta estructura, en **tres párrafos separados y cortos** (1-2 oraciones cada uno, sin encabezados ni viñetas):
 
 Párrafo 1: qué ocurrió (resume el patrón de actividad, no listes cada evento).
 Párrafo 2: por qué es notable dado el contexto (severidad, duración, volumen) y qué técnica de amenaza representa (usa el nombre de la técnica MITRE, no solo el código).
-Párrafo 3: una recomendación concreta y accionable para el equipo de seguridad.
+Párrafo 3: qué respuesta automática tomó el sistema (si la hubo) y una recomendación concreta y accionable para el equipo de seguridad, considerando si esa respuesta ya mitigó parte del riesgo o si aún requiere intervención manual.
 
 Reglas estrictas:
 - No repitas números crudos sin interpretarlos.
@@ -132,10 +140,11 @@ Datos del incidente:
 - Duración de la actividad: {duration} segundos
 - IP de origen: {source_ip}
 - Técnicas MITRE ATT&CK involucradas: {techniques_summary}
-- Acciones observadas: {actions_summary}"""
+- Acciones observadas: {actions_summary}
+- Respuesta automática ejecutada: {defensive_summary}"""
 
-def getBedrockInsight(severity, duration, mitre_techniques, action_counts, config_changes, source_ip):
-    prompt = build_prompt(severity, duration, mitre_techniques, action_counts, config_changes, source_ip)
+def getBedrockInsight(severity, duration, mitre_techniques, action_counts, config_changes, source_ip, defensive_actions):
+    prompt = build_prompt(severity, duration, mitre_techniques, action_counts, config_changes, source_ip, defensive_actions)
     try:
         response = bedrock_runtime.converse(
             modelId = BEDROCK_MODEL_ID,
@@ -167,9 +176,16 @@ def lambda_handler(event, context):
             mitre_techniques = get_mitre_techniques(item)
             action_score_breakdown = get_action_score_breakdown(item)
 
+            # Add the defensive actions to the incident record for auditing purposes
+            defensive_actions = item.get('defensiveActions', [])
+
             incident_id = str(uuid.uuid4())
 
-            insights = getBedrockInsight(severity, duration, mitre_techniques, item.get('actionCounts', {}), item.get('configChanges', {}), item.get('sourceIPAddress'))
+            insights = getBedrockInsight(
+                severity, duration, mitre_techniques,
+                item.get('actionCounts', {}), item.get('configChanges', {}),
+                item.get('sourceIPAddress'), defensive_actions
+            )
 
             incident_table.put_item(
                 Item={
@@ -182,6 +198,7 @@ def lambda_handler(event, context):
                     'firstSeen': first_seen,
                     'lastSeen': last_seen,
                     'duration': duration,
+                    'defensiveActions': defensive_actions,
                     'mitreTechniques': mitre_techniques,
                     'actionCounts': item.get('actionCounts', {}),
                     'configChanges': item.get('configChanges', {}),
