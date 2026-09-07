@@ -112,36 +112,36 @@ def build_prompt(severity, duration, mitre_techniques, action_counts, config_cha
     actions_summary = ", ".join(
         f"{action} (x{details.get('count', 0)})"
         for action, details in {**action_counts, **config_changes}.items()
-    ) or "sin acciones registradas"
+    ) or "no actions recorded"
 
-    techniques_summary = ", ".join(mitre_techniques) if mitre_techniques else "sin técnica mapeada"
+    techniques_summary = ", ".join(mitre_techniques) if mitre_techniques else "no technique mapped"
 
     if defensive_actions:
         defensive_summary = "; ".join(
-            f"{a['action']} ({'exitosa' if a.get('success') else 'fallida'}: {a.get('detail', 'sin detalle')})"
+            f"{a['action']} ({'successful' if a.get('success') else 'failed'}: {a.get('detail', 'no detail')})"
             for a in defensive_actions
         )
     else:
-        defensive_summary = "ninguna acción automática ejecutada"
+        defensive_summary = "no automated action taken"
 
-    return f"""Eres un analista de seguridad revisando un incidente ya clasificado por un sistema de detección automatizado. Genera un informe breve con esta estructura, en **tres párrafos separados y cortos** (1-2 oraciones cada uno, sin encabezados ni viñetas):
+    return f"""You are a security analyst reviewing an incident already classified by an automated detection system. Generate a brief report with this structure, in **three short, separate paragraphs** (1-2 sentences each, no headers or bullet points):
 
-Párrafo 1: qué ocurrió (resume el patrón de actividad, no listes cada evento).
-Párrafo 2: por qué es notable dado el contexto (severidad, duración, volumen) y qué técnica de amenaza representa (usa el nombre de la técnica MITRE, no solo el código).
-Párrafo 3: qué respuesta automática tomó el sistema (si la hubo) y una recomendación concreta y accionable para el equipo de seguridad, considerando si esa respuesta ya mitigó parte del riesgo o si aún requiere intervención manual.
+Paragraph 1: what happened (summarize the activity pattern, don't list every event).
+Paragraph 2: why it's notable given the context (severity, duration, volume) and what threat technique it represents (use the MITRE technique name, not just the code).
+Paragraph 3: what automated response the system took (if any) and a concrete, actionable recommendation for the security team, considering whether that response already mitigated part of the risk or still requires manual intervention.
 
-Reglas estrictas:
-- No repitas números crudos sin interpretarlos.
-- No inventes información que no esté en los datos.
-- Sé conciso: prioriza precisión sobre extensión.
+Strict rules:
+- Don't repeat raw numbers without interpreting them.
+- Don't invent information that isn't in the data.
+- Be concise: prioritize precision over length.
 
-Datos del incidente:
-- Severidad: {severity}
-- Duración de la actividad: {duration} segundos
-- IP de origen: {source_ip}
-- Técnicas MITRE ATT&CK involucradas: {techniques_summary}
-- Acciones observadas: {actions_summary}
-- Respuesta automática ejecutada: {defensive_summary}"""
+Incident data:
+- Severity: {severity}
+- Activity duration: {duration} seconds
+- Source IP: {source_ip}
+- MITRE ATT&CK techniques involved: {techniques_summary}
+- Actions observed: {actions_summary}
+- Automated response executed: {defensive_summary}"""
 
 def getBedrockInsight(severity, duration, mitre_techniques, action_counts, config_changes, source_ip, defensive_actions):
     prompt = build_prompt(severity, duration, mitre_techniques, action_counts, config_changes, source_ip, defensive_actions)
@@ -154,7 +154,7 @@ def getBedrockInsight(severity, duration, mitre_techniques, action_counts, confi
         return response['output']['message']['content'][0]['text']
     except Exception as e:
         logger.error(f"Bedrock invocation failed: {str(e)}")
-        return "Insight no disponible: fallo en la generación automática. Revisar el incidente manualmente."
+        return "Insight unavailable: automated generation failed. Review the incident manually."
 
 
 def lambda_handler(event, context):
