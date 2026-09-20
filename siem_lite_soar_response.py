@@ -102,10 +102,10 @@ def lambda_handler(event, context):
                     logger.info(f"trail_config full: {trail_config}")
                     try:
                         cloudtrail.create_trail(
-                            Name=trail_config['Name'],
-                            S3BucketName=trail_config['S3BucketName'],
-                            IsMultiRegionTrail=trail_config.get('IsMultiRegionTrail', False),
-                            EnableLogFileValidation=trail_config.get('EnableLogFileValidation', False),
+                            Name=trail_config['name'],
+                            S3BucketName=trail_config['s3BucketName'],
+                            IsMultiRegionTrail=trail_config.get('isMultiRegionTrail', False),
+                            EnableLogFileValidation=trail_config.get('logFileValidationEnabled', False),
                         )
                         action_success = True
                         action_detail = "Trail recreated and logging restarted successfully"
