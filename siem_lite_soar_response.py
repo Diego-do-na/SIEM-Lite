@@ -84,10 +84,11 @@ def lambda_handler(event, context):
         
         # DeleteTrail defensive action: If the event is a DeleteTrail action, we attempt to recreate the trail with the same configuration.
         elif event_name == "DeleteTrail":
+            resource_id = trail_name.split('/')[-1] if trail_name else trail_name
             try:
                 history_response = config_client.get_resource_config_history(
                     resourceType='AWS::CloudTrail::Trail',
-                    resourceId=trail_name,
+                    resourceId=resource_id,
                     limit=1
                 )
                 config_items = history_response.get('configurationItems', [])
