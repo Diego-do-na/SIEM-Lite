@@ -40,16 +40,16 @@ def lambda_handler(event, context):
             }
         ).get('Item', {})
 
-        # Avoid repeating the same defensive action if it was already recorded for this userIdentity/sourceIPAddress pair.
+        # Avoid repeating the same defensive action on the same resource for this userIdentity/sourceIPAddress pair.
         existing_actions = current_item.get('defensiveActions', [])
         already_handled = False
         for a in existing_actions:
-            if a.get('action') == event_name:
+            if a.get('action') == event_name and a.get('targetResource') == (trail_name or key_id):
                 already_handled = True
                 break
 
         if already_handled:
-            logger.info(f"Defensive action for {event_name} already handled for user {user_arn} from IP {source_ip}. Skipping.")
+            logger.info(f"Defensive action for {event_name} on {trail_name or key_id} already handled for user {user_arn} from IP {source_ip}. Skipping.")
             return {
                 'message': 'Defensive action already handled',
                 'record': None
