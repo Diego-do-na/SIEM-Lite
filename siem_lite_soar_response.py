@@ -13,6 +13,9 @@ dynamodb = boto3.resource('dynamodb')
 # Initialize the KMS client for interacting with AWS KMS.
 kms_client = boto3.client('kms')
 
+# Initialize the Config client for interacting with AWS Config.
+config_client = boto3.client('config')
+
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
@@ -81,9 +84,40 @@ def lambda_handler(event, context):
         
         # DeleteTrail defensive action: If the event is a DeleteTrail action, we attempt to recreate the trail with the same configuration.
         elif event_name == "DeleteTrail":
-            action_success = False
-            action_detail = "No automatic remediation possible: trail was deleted and cannot be recreated without AWS Config storing its prior configuration"
-        
+            try:
+                history_response = config_client.get_resource_config_history(
+                    resourceType='AWS::CloudTrail::Trail',
+                    resourceId=trail_name,
+                    limit=1
+                )
+                config_items = history_response.get('configurationItems', [])
+
+                if not config_items:
+                    action_success = False
+                    action_detail = "No configuration history found in AWS Config for this trail — cannot recreate"
+                else:
+                    last_known_config = config_items[0]
+                    trail_config = json.loads(last_known_config['configuration'])
+                    logger.info(f"trail_config keys: {list(trail_config.keys())}")
+                    logger.info(f"trail_config full: {trail_config}")
+                    try:
+                        cloudtrail.create_trail(
+                            Name=trail_config['Name'],
+                            S3BucketName=trail_config['S3BucketName'],
+                            IsMultiRegionTrail=trail_config.get('IsMultiRegionTrail', False),
+                            EnableLogFileValidation=trail_config.get('EnableLogFileValidation', False),
+                        )
+                        action_success = True
+                        action_detail = "Trail recreated and logging restarted successfully"
+                    except Exception as e:
+                        action_success = False
+                        action_detail = f"Failed to recreate trail: {str(e)}"
+                        logger.error(action_detail)
+            except Exception as e:
+                action_success = False
+                action_detail = f"Failed to get configuration history: {str(e)}"
+                logger.error(action_detail)
+
         # The summary of the defensive action taken is recorded in the DynamoDB table for future reference and auditing.
         action_record = {
             'action': event_name,
