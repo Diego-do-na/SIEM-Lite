@@ -58,11 +58,8 @@ baseline_table = dynamodb.Table(BASELINE_TABLE_NAME) if BASELINE_TABLE_NAME else
 
 
 def get_principal_key(user_identity):
-    # Must match siem_lite_baseline_updater
-    id_type = user_identity.get('type')
-    if id_type == 'AssumedRole':
-        return user_identity.get('sessionContext', {}).get('sessionIssuer', {}).get('arn')
-    if id_type in ('IAMUser', 'Root'):
+    # Users only: roles and services get no baseline
+    if user_identity.get('type') in ('IAMUser', 'Root'):
         return user_identity.get('arn')
     return None
 

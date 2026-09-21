@@ -28,11 +28,8 @@ CACHE_MAX_ENTRIES = 2000
 
 
 def get_principal_key(user_identity):
-    # Must match siem_lite_detection
-    id_type = user_identity.get('type')
-    if id_type == 'AssumedRole':
-        return user_identity.get('sessionContext', {}).get('sessionIssuer', {}).get('arn')
-    if id_type in ('IAMUser', 'Root'):
+    # Users only: roles and services get no baseline
+    if user_identity.get('type') in ('IAMUser', 'Root'):
         return user_identity.get('arn')
     return None
 
