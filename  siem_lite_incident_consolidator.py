@@ -86,25 +86,30 @@ def get_mitre_techniques(item):
     return sorted(techniques)
 
 def get_action_score_breakdown(item):
-    """Build a flat {action_name: score} breakdown, mirroring exactly how
-    siem_lite_detection accumulates globalCounts:
-    - actionCounts (denied access) always contributes, fallback weight 40.
-    - configChanges only contributes if the action is critical; non-critical
-    config changes are excluded entirely, since they never added to
-    globalCounts in the first place.
+    """Build a flat {action_name: score} breakdown from what siem_lite_detection
+    actually wrote. Prefers the stored 'score' (the real increment applied,
+    already scaled by the Rule 3 behavior multiplier when active). Falls back
+    to weight * count for items written before 'score' existed, or for
+    non-critical configChanges entries that never had a score to begin with.
     """
     breakdown = {}
 
     for action_name, details in item.get('actionCounts', {}).items():
-        count = int(details.get('count', 0))
-        weight = ACTION_WEIGHTS.get(action_name, 40)
-        breakdown[action_name] = weight * count
+        if 'score' in details:
+            breakdown[action_name] = int(details['score'])
+        else:
+            count = int(details.get('count', 0))
+            weight = ACTION_WEIGHTS.get(action_name, 40)
+            breakdown[action_name] = weight * count
 
     for action_name, details in item.get('configChanges', {}).items():
         if action_name in CRITICAL_CONFIG_EVENTS:
-            count = int(details.get('count', 0))
-            weight = ACTION_WEIGHTS.get(action_name, 0)
-            breakdown[action_name] = weight * count
+            if 'score' in details:
+                breakdown[action_name] = int(details['score'])
+            else:
+                count = int(details.get('count', 0))
+                weight = ACTION_WEIGHTS.get(action_name, 0)
+                breakdown[action_name] = weight * count
 
     return breakdown
 
