@@ -12,9 +12,9 @@ deserializer = TypeDeserializer()
 s3 = boto3.client('s3')
 
 logger = logging.getLogger()
-logging.setLevel(logging.INFO)
+logger.setLevel(logging.INFO) 
 
-RAW_BUCKET = os.environ.get('RAW_BUCKET')
+RAW_BUCKET = os.environ.get('RAW_BUCKET_NAME')
 
 def deserialize_item(dynamodb_json):
     return {k: deserializer.deserialize(v) for k, v in dynamodb_json.items()}
