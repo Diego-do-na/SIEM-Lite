@@ -5,6 +5,8 @@ import uuid
 import boto3
 from boto3.dynamodb.types import TypeDeserializer
 
+from shared import scoring, mitre
+
 deserializer = TypeDeserializer()
 dynamodb = boto3.resource('dynamodb')
 
@@ -18,100 +20,8 @@ BEDROCK_MODEL_ID = os.environ.get('BEDROCK_MODEL_ID')
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-# Same weights as the detection Lambda, kept in sync for severity recalculation
-ACTION_WEIGHTS = {
-    'StopLogging': 400,
-    'DeleteTrail': 400,
-    'DisableKey': 400,
-    'ScheduleKeyDeletion': 400,
-    'UpdateTrail': 240,
-    'DeleteSecurityGroup': 240,
-    'AuthorizeSecurityGroupIngress': 200,
-    'CreateSecurityGroup': 160,
-    'RevokeSecurityGroupIngress': 120,
-    'AuthorizeSecurityGroupEgress': 120,
-    'RevokeSecurityGroupEgress': 80,
-}
-
-# Same critical set as the detection Lambda — only these contribute to
-# globalCounts on the configChanges (Rule 1) branch.
-CRITICAL_CONFIG_EVENTS = {'StopLogging', 'DeleteTrail', 'DisableKey', 'ScheduleKeyDeletion'}
-
-MITRE_MAP = {
-    'StopLogging': 'T1562.008',
-    'DeleteTrail': 'T1562.008',
-    'UpdateTrail': 'T1562.008',
-    'AuthorizeSecurityGroupIngress': 'T1562.007',
-    'AuthorizeSecurityGroupEgress': 'T1562.007',
-    'RevokeSecurityGroupIngress': 'T1562.007',
-    'RevokeSecurityGroupEgress': 'T1562.007',
-    'CreateSecurityGroup': 'T1562.007',
-    'DeleteSecurityGroup': 'T1562.007',
-    'DisableKey': 'T1485',
-    'ScheduleKeyDeletion': 'T1485',
-}
-
-def get_severity(score):
-    if score >= 600:
-        return "CRITICAL"
-    elif score >= 400:
-        return "HIGH"
-    elif score >= 200:
-        return "MEDIUM"
-    elif score >= 1:
-        return "LOW"
-    return "NONE"
-
 def deserialize_item(dynamodb_json):
     return {k: deserializer.deserialize(v) for k, v in dynamodb_json.items()}
-
-def get_mitre_techniques(item):
-    """Collect unique MITRE techniques from every action seen in this incident."""
-    techniques = set()
-
-    for action_name in item.get('actionCounts', {}).keys():
-        technique = MITRE_MAP.get(action_name)
-        if technique:
-            techniques.add(technique)
-        else:
-            # Denied-access actions not in the static map get a generic
-            # brute-force/discovery technique when repeated.
-            techniques.add('T1110')
-
-    for action_name in item.get('configChanges', {}).keys():
-        technique = MITRE_MAP.get(action_name)
-        if technique:
-            techniques.add(technique)
-
-    return sorted(techniques)
-
-def get_action_score_breakdown(item):
-    """Build a flat {action_name: score} breakdown from what siem_lite_detection
-    actually wrote. Prefers the stored 'score' (the real increment applied,
-    already scaled by the Rule 3 behavior multiplier when active). Falls back
-    to weight * count for items written before 'score' existed, or for
-    non-critical configChanges entries that never had a score to begin with.
-    """
-    breakdown = {}
-
-    for action_name, details in item.get('actionCounts', {}).items():
-        if 'score' in details:
-            breakdown[action_name] = int(details['score'])
-        else:
-            count = int(details.get('count', 0))
-            weight = ACTION_WEIGHTS.get(action_name, 40)
-            breakdown[action_name] = weight * count
-
-    for action_name, details in item.get('configChanges', {}).items():
-        if action_name in CRITICAL_CONFIG_EVENTS:
-            if 'score' in details:
-                breakdown[action_name] = int(details['score'])
-            else:
-                count = int(details.get('count', 0))
-                weight = ACTION_WEIGHTS.get(action_name, 0)
-                breakdown[action_name] = weight * count
-
-    return breakdown
 
 def build_prompt(severity, duration, mitre_techniques, action_counts, config_changes, source_ip, defensive_actions):
     actions_summary = ", ".join(
@@ -176,10 +86,10 @@ def lambda_handler(event, context):
             duration = last_seen - first_seen
 
             global_score = int(item.get('globalCounts', 0))
-            severity = get_severity(global_score)
+            severity = scoring.get_severity(global_score)
 
-            mitre_techniques = get_mitre_techniques(item)
-            action_score_breakdown = get_action_score_breakdown(item)
+            mitre_techniques = mitre.get_mitre_techniques(item)
+            action_score_breakdown = mitre.get_action_score_breakdown(item)
 
             # Add the defensive actions to the incident record for auditing purposes
             defensive_actions = item.get('defensiveActions', [])
