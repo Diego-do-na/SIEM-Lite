@@ -1,7 +1,11 @@
 .env
 
-
+# Terraform
 backend/infra/.terraform/
 backend/infra/terraform.tfstate
 backend/infra/terraform.tfstate.backup
 backend/infra/terraform.tfvars
+backend/infra/build/
+
+# macOS
+.DS_Store
