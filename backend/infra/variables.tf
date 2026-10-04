@@ -93,3 +93,9 @@ variable "enable_cloudtrail" {
     type = bool
     default = false
 }
+
+variable "enable_event_rules" {
+    description = "Enable the EventBridge rules. Keep false while testing so the deployment does not react to real events"
+    type = bool
+    default = true
+}

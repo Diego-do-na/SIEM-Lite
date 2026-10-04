@@ -1,3 +1,11 @@
+locals {
+    data_buckets = {
+        raw = aws_s3_bucket.raw.id
+        processed = aws_s3_bucket.processed.id
+        athena_results = aws_s3_bucket.athena_results.id
+    }
+}
+
 data "aws_caller_identity" "current" {}
 
 resource "aws_s3_bucket" "raw" {
@@ -12,13 +20,6 @@ resource "aws_s3_bucket" "athena_results" {
     bucket = "${local.prefix}-athena-query-results-${data.aws_caller_identity.current.account_id}"
 }
 
-locals {
-    data_buckets = {
-        raw = aws_s3_bucket.raw.id
-        processed = aws_s3_bucket.processed.id
-        athena_results = aws_s3_bucket.athena_results.id
-    }
-}
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "this" {
     for_each = local.data_buckets
