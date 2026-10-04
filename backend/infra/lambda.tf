@@ -175,6 +175,9 @@ resource "aws_lambda_event_source_mapping" "incident_consolidator" {
             })
         }
     }
+
+    # The role must be allowed to read the stream before the mapping is created
+    depends_on = [aws_iam_role_policy.incident_consolidator]
 }
 
 resource "aws_lambda_event_source_mapping" "incident_exporter" {
@@ -182,4 +185,6 @@ resource "aws_lambda_event_source_mapping" "incident_exporter" {
     function_name = aws_lambda_function.incident_exporter.arn
     starting_position = "LATEST"
     batch_size = 100
+
+    depends_on = [aws_iam_role_policy.incident_exporter]
 }
