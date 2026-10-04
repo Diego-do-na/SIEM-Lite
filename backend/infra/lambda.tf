@@ -1,14 +1,32 @@
 locals {
     runtime = "python3.14"
-    function_dirs = toset([
-        "detection", "baseline_updater", "incident_consolidator",
-        "incident_exporter", "weekly_summary", "soar_response"
-    ])
+    functions_with_shared = toset(["detection", "baseline_updater", "incident_consolidator"])
+    functions_standalone = toset(["incident_exporter", "weekly_summary", "soar_response"])
 }
 
-# One zip per function folder. Terraform detects code changes through the hash.
-data "archive_file" "this" {
-    for_each = local.function_dirs
+# Functions that import the shared package: handler at the zip root, shared/ next to it
+data "archive_file" "with_shared" {
+    for_each = local.functions_with_shared
+    type = "zip"
+    output_path = "${path.module}/build/${each.key}.zip"
+
+    source {
+        content = file("${path.module}/../functions/pipeline/${each.key}/handler.py")
+        filename = "handler.py"
+    }
+
+    dynamic "source" {
+        for_each = fileset("${path.module}/../shared", "*.py")
+        content {
+            content = file("${path.module}/../shared/${source.value}")
+            filename = "shared/${source.value}"
+        }
+    }
+}
+
+# Functions with no local imports: the folder is zipped as is
+data "archive_file" "standalone" {
+    for_each = local.functions_standalone
     type = "zip"
     source_dir = "${path.module}/../functions/pipeline/${each.key}"
     output_path = "${path.module}/build/${each.key}.zip"
@@ -21,8 +39,8 @@ resource "aws_lambda_function" "detection" {
     handler = "handler.lambda_handler"
     timeout = 10
     memory_size = 128
-    filename = data.archive_file.this["detection"].output_path
-    source_code_hash = data.archive_file.this["detection"].output_base64sha256
+    filename = data.archive_file.with_shared["detection"].output_path
+    source_code_hash = data.archive_file.with_shared["detection"].output_base64sha256
 
     environment {
         variables = {
@@ -43,8 +61,8 @@ resource "aws_lambda_function" "baseline_updater" {
     handler = "handler.lambda_handler"
     timeout = 10
     memory_size = 128
-    filename = data.archive_file.this["baseline_updater"].output_path
-    source_code_hash = data.archive_file.this["baseline_updater"].output_base64sha256
+    filename = data.archive_file.with_shared["baseline_updater"].output_path
+    source_code_hash = data.archive_file.with_shared["baseline_updater"].output_base64sha256
 
     environment {
         variables = {
@@ -61,8 +79,8 @@ resource "aws_lambda_function" "incident_consolidator" {
     handler = "handler.lambda_handler"
     timeout = 30
     memory_size = 128
-    filename = data.archive_file.this["incident_consolidator"].output_path
-    source_code_hash = data.archive_file.this["incident_consolidator"].output_base64sha256
+    filename = data.archive_file.with_shared["incident_consolidator"].output_path
+    source_code_hash = data.archive_file.with_shared["incident_consolidator"].output_base64sha256
 
     environment {
         variables = {
@@ -79,8 +97,8 @@ resource "aws_lambda_function" "incident_exporter" {
     handler = "handler.lambda_handler"
     timeout = 10
     memory_size = 128
-    filename = data.archive_file.this["incident_exporter"].output_path
-    source_code_hash = data.archive_file.this["incident_exporter"].output_base64sha256
+    filename = data.archive_file.standalone["incident_exporter"].output_path
+    source_code_hash = data.archive_file.standalone["incident_exporter"].output_base64sha256
 
     environment {
         variables = {
@@ -96,8 +114,8 @@ resource "aws_lambda_function" "weekly_summary" {
     handler = "handler.lambda_handler"
     timeout = 30
     memory_size = 128
-    filename = data.archive_file.this["weekly_summary"].output_path
-    source_code_hash = data.archive_file.this["weekly_summary"].output_base64sha256
+    filename = data.archive_file.standalone["weekly_summary"].output_path
+    source_code_hash = data.archive_file.standalone["weekly_summary"].output_base64sha256
 
     environment {
         variables = {
@@ -118,12 +136,40 @@ resource "aws_lambda_function" "soar_response" {
     handler = "handler.lambda_handler"
     timeout = 15
     memory_size = 128
-    filename = data.archive_file.this["soar_response"].output_path
-    source_code_hash = data.archive_file.this["soar_response"].output_base64sha256
+    filename = data.archive_file.standalone["soar_response"].output_path
+    source_code_hash = data.archive_file.standalone["soar_response"].output_base64sha256
 
     environment {
         variables = {
             THRESHOLD_TABLE_NAME = aws_dynamodb_table.threshold_tracker.name
         }
     }
+}
+
+# Streams triggers: the function is invoked by DynamoDB, not by EventBridge
+resource "aws_lambda_event_source_mapping" "incident_consolidator" {
+    event_source_arn = aws_dynamodb_table.threshold_tracker.stream_arn
+    function_name = aws_lambda_function.incident_consolidator.arn
+    starting_position = "LATEST"
+    batch_size = 1
+
+    # Only real TTL expirations: removals done by the DynamoDB service itself
+    filter_criteria {
+        filter {
+            pattern = jsonencode({
+                eventName = ["REMOVE"]
+                userIdentity = {
+                    type = ["Service"]
+                    principalId = ["dynamodb.amazonaws.com"]
+                }
+            })
+        }
+    }
+}
+
+resource "aws_lambda_event_source_mapping" "incident_exporter" {
+    event_source_arn = aws_dynamodb_table.incident_reports.stream_arn
+    function_name = aws_lambda_function.incident_exporter.arn
+    starting_position = "LATEST"
+    batch_size = 100
 }

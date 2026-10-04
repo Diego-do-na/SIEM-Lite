@@ -1,4 +1,4 @@
-/*resource "aws_cloudwatch_event_rule" "config_changes" {
+resource "aws_cloudwatch_event_rule" "config_changes" {
     name = "${local.prefix}-config-changes"
     state = var.enable_event_rules ? "ENABLED" : "DISABLED"
 
@@ -113,4 +113,4 @@ resource "aws_lambda_permission" "weekly_summary" {
     function_name = aws_lambda_function.weekly_summary.function_name
     principal = "events.amazonaws.com"
     source_arn = aws_cloudwatch_event_rule.weekly_summary.arn
-} */
+}
