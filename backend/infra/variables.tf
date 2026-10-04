@@ -87,3 +87,9 @@ variable "tags" {
         Project = "siem-lite"
     }
 }
+
+variable "enable_cloudtrail" {
+    description = "Create a CloudTrail trail and its log bucket. Keep false if the account already has a multi-region management trail"
+    type = bool
+    default = false
+}
