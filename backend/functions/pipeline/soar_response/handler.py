@@ -108,11 +108,19 @@ def lambda_handler(event, context):
                             IsMultiRegionTrail=trail_config.get('isMultiRegionTrail', False),
                             EnableLogFileValidation=trail_config.get('logFileValidationEnabled', False),
                         )
-                        action_success = True
-                        action_detail = "Trail recreated and logging restarted successfully"
+                        # A trail created through the API starts stopped, so logging must be started explicitly.
+                        cloudtrail.start_logging(Name=trail_config['name'])
+                        # Verify the real state instead of assuming success.
+                        trail_status = cloudtrail.get_trail_status(Name=trail_config['name'])
+                        if trail_status['IsLogging']:
+                            action_success = True
+                            action_detail = "Trail recreated and logging verified active"
+                        else:
+                            action_success = False
+                            action_detail = "Trail recreated but logging is NOT active, manual intervention required"
                     except Exception as e:
                         action_success = False
-                        action_detail = f"Failed to recreate trail: {str(e)}"
+                        action_detail = f"Failed to recreate or start trail: {str(e)}"
                         logger.error(action_detail)
             except Exception as e:
                 action_success = False
