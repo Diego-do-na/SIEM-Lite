@@ -50,6 +50,12 @@ resource "aws_lambda_function" "detection" {
             ALERT_TOPIC_ARN = aws_sns_topic.alerts.arn
             ENABLE_BEHAVIOR_BASELINE = tostring(var.enable_behavior_baseline)
             BASELINE_N0_DAYS = tostring(var.baseline_n0_days)
+            BASELINE_Z_LOW = tostring(var.baseline_z_low)
+            BASELINE_Z_HIGH = tostring(var.baseline_z_high)
+            BASELINE_TIME_AMPLITUDE = tostring(var.baseline_time_amplitude)
+            BASELINE_IP_BUMP_SAME_RANGE = tostring(var.baseline_ip_bump_same_range)
+            BASELINE_IP_BUMP_NEW_RANGE = tostring(var.baseline_ip_bump_new_range)
+            BASELINE_M_MAX = tostring(var.baseline_m_max)
         }
     }
 }
@@ -68,6 +74,10 @@ resource "aws_lambda_function" "baseline_updater" {
         variables = {
             BASELINE_TABLE_NAME = aws_dynamodb_table.behavior_baseline.name
             IP_TTL_DAYS = tostring(var.ip_ttl_days)
+            BASELINE_Z_LOW = tostring(var.baseline_z_low)
+            BASELINE_Z_HIGH = tostring(var.baseline_z_high)
+            BASELINE_IP_BUMP_SAME_RANGE = tostring(var.baseline_ip_bump_same_range)
+            BASELINE_IP_BUMP_NEW_RANGE = tostring(var.baseline_ip_bump_new_range)
         }
     }
 }
