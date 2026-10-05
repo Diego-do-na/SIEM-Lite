@@ -1,0 +1,3 @@
+aws_region               = "us-east-2"
+alert_email              = "you@example.com"
+enable_behavior_baseline = false

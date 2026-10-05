@@ -147,7 +147,7 @@ resource "aws_iam_role_policy" "incident_exporter" {
 data "aws_iam_policy_document" "weekly_summary" {
     statement {
         actions = ["athena:StartQueryExecution", "athena:GetQueryExecution", "athena:GetQueryResults"]
-        resources = ["arn:aws:athena:${var.aws_region}:${data.aws_caller_identity.current.account_id}:workgroup/primary"]
+        resources = [aws_athena_workgroup.this.arn]
     }
     statement {
         actions = ["glue:GetDatabase", "glue:GetTable", "glue:GetPartitions"]
@@ -192,13 +192,14 @@ resource "aws_iam_role_policy" "weekly_summary" {
 # soar_response: remediates the four critical actions and records what it did
 data "aws_iam_policy_document" "soar_response" {
     statement {
-        # The target trail or key is not known in advance, so these cannot be scoped to a resource
+        # The trail that gets attacked is not known in advance, so the scope is every trail of this account in this region
         actions = ["cloudtrail:StartLogging", "cloudtrail:GetTrailStatus", "cloudtrail:CreateTrail"]
-        resources = ["*"]
+        resources = ["arn:aws:cloudtrail:${var.aws_region}:${data.aws_caller_identity.current.account_id}:trail/*"]
     }
     statement {
+        # Same idea for keys: any key of this account in this region
         actions = ["kms:EnableKey", "kms:CancelKeyDeletion"]
-        resources = ["*"]
+        resources = ["arn:aws:kms:${var.aws_region}:${data.aws_caller_identity.current.account_id}:key/*"]
     }
     statement {
         # GetResourceConfigHistory does not support resource-level permissions

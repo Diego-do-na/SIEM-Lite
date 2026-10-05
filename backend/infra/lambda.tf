@@ -134,6 +134,7 @@ resource "aws_lambda_function" "weekly_summary" {
             # The crawler names the table after the bucket, with dashes turned into underscores
             ATHENA_TABLE = replace(aws_s3_bucket.processed.bucket, "-", "_")
             ATHENA_OUTPUT_LOCATION = "s3://${aws_s3_bucket.athena_results.bucket}/"
+            ATHENA_WORKGROUP = aws_athena_workgroup.this.name
             BEDROCK_MODEL_ID = var.bedrock_model_id
         }
     }

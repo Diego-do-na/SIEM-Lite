@@ -10,7 +10,7 @@ from shared import scoring, mitre
 deserializer = TypeDeserializer()
 dynamodb = boto3.resource('dynamodb')
 
-bedrock_runtime = boto3.client('bedrock-runtime', region_name='us-west-2', config=boto3.session.Config(
+bedrock_runtime = boto3.client('bedrock-runtime', region_name=os.environ['AWS_REGION'], config=boto3.session.Config(
     connect_timeout=5,
     read_timeout=15,
     retries={'max_attempts': 1}

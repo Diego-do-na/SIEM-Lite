@@ -19,6 +19,10 @@ resource "aws_dynamodb_table" "threshold_tracker" {
         enabled = true
     }
 
+    point_in_time_recovery {
+        enabled = true
+    }
+
     stream_enabled = true
     stream_view_type = "NEW_AND_OLD_IMAGES"
 }
@@ -43,6 +47,10 @@ resource "aws_dynamodb_table" "behavior_baseline" {
         attribute_name = "ttl"
         enabled = true
     }
+
+    point_in_time_recovery {
+        enabled = true
+    }
 }
 
 resource "aws_dynamodb_table" "incident_reports" {
@@ -59,6 +67,10 @@ resource "aws_dynamodb_table" "incident_reports" {
     attribute {
         name = "timestamp"
         type = "N"
+    }
+
+    point_in_time_recovery {
+        enabled = true
     }
 
     stream_enabled = true

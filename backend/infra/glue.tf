@@ -9,6 +9,22 @@ resource "aws_glue_catalog_database" "catalog" {
     name = local.glue_database_name
 }
 
+resource "aws_glue_security_configuration" "this" {
+    name = "${local.prefix}-glue-security"
+
+    encryption_configuration {
+        s3_encryption {
+            s3_encryption_mode = "SSE-S3"
+        }
+        cloudwatch_encryption {
+            cloudwatch_encryption_mode = "DISABLED"
+        }
+        job_bookmarks_encryption {
+            job_bookmarks_encryption_mode = "DISABLED"
+        }
+    }
+}
+
 # The script is uploaded from the repo, so the Job always runs the versioned code
 resource "aws_s3_object" "transformer_script" {
     bucket = aws_s3_bucket.glue_assets.id
@@ -24,6 +40,7 @@ resource "aws_glue_job" "incident_transformer" {
     worker_type = "G.1X"
     number_of_workers = 2
     timeout = 30
+    security_configuration = aws_glue_security_configuration.this.name
 
     command {
         name = "glueetl"
@@ -53,6 +70,7 @@ resource "aws_glue_crawler" "incident_crawler" {
     name = "${local.prefix}-incident-crawler"
     role = aws_iam_role.glue.arn
     database_name = aws_glue_catalog_database.catalog.name
+    security_configuration = aws_glue_security_configuration.this.name
 
     s3_target {
         path = "s3://${aws_s3_bucket.processed.bucket}/"

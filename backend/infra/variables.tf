@@ -80,22 +80,28 @@ variable "baseline_m_max" {
     default = 2.0
 }
 
-variable "tags" {
-    description = "Common tags applied to all resources"
-    type = map(string)
-    default = {
-        Project = "siem-lite"
-    }
-}
-
 variable "enable_cloudtrail" {
     description = "Create a CloudTrail trail and its log bucket. Keep false if the account already has a multi-region management trail"
     type = bool
     default = false
 }
 
+variable "enable_config" {
+    description = "Create the AWS Config recorder (one per region) and its delivery bucket. SOAR needs it to recreate a deleted trail"
+    type = bool
+    default = false
+}
+
 variable "enable_event_rules" {
-    description = "Enable the EventBridge rules. Keep false while testing so the deployment does not react to real events"
+    description = "Enable the EventBridge rules and the Glue schedules. Keep false while testing so the deployment does not react to real events"
     type = bool
     default = true
+}
+
+variable "tags" {
+    description = "Common tags applied to all resources"
+    type = map(string)
+    default = {
+        Project = "siem-lite"
+    }
 }

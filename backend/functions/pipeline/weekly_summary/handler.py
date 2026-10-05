@@ -8,7 +8,7 @@ import boto3
 
 athena = boto3.client('athena')
 sns = boto3.client('sns')
-bedrock_runtime = boto3.client('bedrock-runtime', region_name='us-west-2', config=boto3.session.Config(
+bedrock_runtime = boto3.client('bedrock-runtime', region_name=os.environ['AWS_REGION'], config=boto3.session.Config(
     connect_timeout=5,
     read_timeout=15,
     retries={'max_attempts': 1}
@@ -20,6 +20,7 @@ logger.setLevel(logging.INFO)
 ATHENA_DATABASE = os.environ.get('ATHENA_DATABASE')
 ATHENA_TABLE = os.environ.get('ATHENA_TABLE')
 ATHENA_OUTPUT_LOCATION = os.environ.get('ATHENA_OUTPUT_LOCATION')
+ATHENA_WORKGROUP = os.environ.get('ATHENA_WORKGROUP', 'primary')
 SNS_TOPIC_ARN = os.environ.get('SNS_TOPIC_ARN')
 BEDROCK_MODEL_ID = os.environ.get('BEDROCK_MODEL_ID')
 
@@ -34,9 +35,10 @@ def run_athena_query(since_epoch):
         f'FROM {ATHENA_TABLE} '
         f'WHERE "timestamp" >= {since_epoch}'
     )
-
+    
     response = athena.start_query_execution(
         QueryString=query,
+        WorkGroup=ATHENA_WORKGROUP,
         QueryExecutionContext={'Database': ATHENA_DATABASE},
         ResultConfiguration={'OutputLocation': ATHENA_OUTPUT_LOCATION}
     )

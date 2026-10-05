@@ -1,0 +1,22 @@
+framework:
+  - terraform
+skip-path:
+  - build
+skip-check:
+  # Lambda inside a VPC: the functions only call AWS APIs, a VPC would add NAT cost for no isolation benefit
+  - CKV_AWS_117
+  # Lambda code signing: out of scope for a portfolio project without a signing pipeline
+  - CKV_AWS_272
+  # Lambda env vars encrypted with a customer managed KMS key: the env vars hold names and ARNs, no secrets
+  - CKV_AWS_173
+  # X-Ray tracing: cost and noise, CloudWatch Logs is enough for this scale
+  - CKV_AWS_50
+  # Lambda reserved concurrency: would cap throughput during an attack burst
+  - CKV_AWS_115
+  # Lambda dead letter queue: known limitation of 1.0, planned for a later version
+  - CKV_AWS_116
+  # DynamoDB encrypted with a customer managed KMS key: AWS owned key is used, CMK costs per request
+  - CKV_AWS_119
+  # Glue security configuration with KMS for CloudWatch logs and bookmarks: needs a customer managed key (cost and key policy),
+  # data at rest is already encrypted with SSE-S3 and logs/bookmarks hold no sensitive data. Revisit if a CMK is added
+  - CKV_AWS_99
