@@ -99,3 +99,19 @@ resource "aws_cloudtrail" "management_events" {
 
     depends_on = [aws_s3_bucket_policy.cloudtrail_logs]
 }
+
+resource "aws_s3_bucket_lifecycle_configuration" "cloudtrail_logs" {
+    count = var.enable_cloudtrail ? 1 : 0
+    bucket = aws_s3_bucket.cloudtrail_logs[0].id
+
+    rule {
+        id = "abort-incomplete-multipart-uploads"
+        status = "Enabled"
+
+        filter {}
+
+        abort_incomplete_multipart_upload {
+            days_after_initiation = 7
+        }
+    }
+}
