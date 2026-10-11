@@ -94,3 +94,19 @@ resource "aws_config_configuration_recorder_status" "this" {
 
     depends_on = [aws_config_delivery_channel.this]
 }
+
+resource "aws_s3_bucket_lifecycle_configuration" "config" {
+    count = var.enable_config ? 1 : 0
+    bucket = aws_s3_bucket.config[0].id
+
+    rule {
+        id = "abort-incomplete-multipart-uploads"
+        status = "Enabled"
+
+        filter {}
+
+        abort_incomplete_multipart_upload {
+            days_after_initiation = 7
+        }
+    }
+}
