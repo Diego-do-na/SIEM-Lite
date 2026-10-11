@@ -3,20 +3,41 @@ framework:
 skip-path:
   - build
 skip-check:
+  # ---- Lambda: cost and scope decisions ----
   # Lambda inside a VPC: the functions only call AWS APIs, a VPC would add NAT cost for no isolation benefit
   - CKV_AWS_117
   # Lambda code signing: out of scope for a portfolio project without a signing pipeline
   - CKV_AWS_272
-  # Lambda env vars encrypted with a customer managed KMS key: the env vars hold names and ARNs, no secrets
-  - CKV_AWS_173
   # X-Ray tracing: cost and noise, CloudWatch Logs is enough for this scale
   - CKV_AWS_50
   # Lambda reserved concurrency: would cap throughput during an attack burst
   - CKV_AWS_115
-  # Lambda dead letter queue: known limitation of 1.0, planned for a later version
+
+  # ---- Resilience ----
+  # DEBT for 1.1. Lambda dead letter queue: a failed event is lost after the retries
   - CKV_AWS_116
-  # DynamoDB encrypted with a customer managed KMS key: AWS owned key is used, CMK costs per request
+  # S3 cross-region replication: disaster recovery, not a security baseline, cost without benefit here
+  - CKV_AWS_144
+  # S3 versioning: the buckets hold derived copies of incident_reports, which is the source of truth (kept forever, with PITR)
+  - CKV_AWS_21
+
+  # ---- Encryption: SSE-S3 or AWS owned keys everywhere, no customer managed keys (CMK) yet ----
+  # Lambda env vars with a CMK: they hold names and ARNs, no secrets
+  - CKV_AWS_173
+  # DynamoDB with a CMK: encrypted at rest with an AWS owned key, a CMK costs per request
   - CKV_AWS_119
-  # Glue security configuration with KMS for CloudWatch logs and bookmarks: needs a customer managed key (cost and key policy),
-  # data at rest is already encrypted with SSE-S3 and logs/bookmarks hold no sensitive data. Revisit if a CMK is added
+  # Glue security configuration with KMS for CloudWatch logs and bookmarks: needs a CMK and its key policy
   - CKV_AWS_99
+  # DEBT for 1.1. S3 buckets with a CMK: gives key level access control and a CloudTrail record of key use
+  - CKV_AWS_145
+
+  # ---- Observability ----
+  # DEBT for 1.1. S3 access logging: needs a log bucket, and CloudTrail data events are not enabled either
+  - CKV_AWS_18
+  # S3 event notifications: nothing consumes them
+  - CKV2_AWS_62
+  # CloudTrail to CloudWatch Logs: the trail is optional and the pipeline reads events through EventBridge
+  - CKV2_AWS_10
+  # AWS Config recording everything: only trails are recorded on purpose, to keep the cost down
+  - CKV2_AWS_48
+  - CKV2_AWS_45

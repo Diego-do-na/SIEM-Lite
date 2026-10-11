@@ -64,3 +64,20 @@ resource "aws_s3_bucket_lifecycle_configuration" "athena_results" {
         }
     }
 }
+
+# The other buckets keep their data forever, the only rule is to clean up abandoned multipart uploads
+resource "aws_s3_bucket_lifecycle_configuration" "data" {
+    for_each = { for name, id in local.data_buckets : name => id if name != "athena_results" }
+    bucket = each.value
+
+    rule {
+        id = "abort-incomplete-multipart-uploads"
+        status = "Enabled"
+
+        filter {}
+
+        abort_incomplete_multipart_upload {
+            days_after_initiation = 7
+        }
+    }
+}
