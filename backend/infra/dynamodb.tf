@@ -76,3 +76,21 @@ resource "aws_dynamodb_table" "incident_reports" {
     stream_enabled = true
     stream_view_type = "NEW_AND_OLD_IMAGES"
 }
+
+# Answers of the analytics reports, so a refresh does not run Athena again
+resource "aws_dynamodb_table" "api_cache" {
+    # checkov:skip=CKV_AWS_28:Cache, every entry can be rebuilt from Athena, a backup adds nothing
+    name = "${local.prefix}-api-cache"
+    billing_mode = "PAY_PER_REQUEST"
+    hash_key = "cacheKey"
+
+    attribute {
+        name = "cacheKey"
+        type = "S"
+    }
+
+    ttl {
+        attribute_name = "ttl"
+        enabled = true
+    }
+}
