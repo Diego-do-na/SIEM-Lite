@@ -26,8 +26,6 @@ skip-check:
   - CKV_AWS_173
   # DynamoDB with a CMK: encrypted at rest with an AWS owned key, a CMK costs per request
   - CKV_AWS_119
-  # Glue security configuration with KMS for CloudWatch logs and bookmarks: needs a CMK and its key policy
-  - CKV_AWS_99
   # DEBT for 1.1. S3 buckets with a CMK: gives key level access control and a CloudTrail record of key use
   - CKV_AWS_145
 

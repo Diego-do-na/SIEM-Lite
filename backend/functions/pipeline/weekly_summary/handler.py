@@ -3,6 +3,7 @@ import time
 import json
 import logging
 from collections import Counter
+from datetime import datetime, timezone
 
 import boto3
 
@@ -30,10 +31,12 @@ MAX_POLL_ATTEMPTS = 25  # ~25s max wait for the query
 
 
 def run_athena_query(since_epoch):
+    # `day` is the partition column: filtering on it makes Athena list only those days in S3
+    day = datetime.fromtimestamp(since_epoch, tz=timezone.utc).strftime('%Y-%m-%d')
     query = (
         f'SELECT incidentid, severity, globalscore, sourceipaddress, mitretechniques, "timestamp" '
         f'FROM {ATHENA_TABLE} '
-        f'WHERE "timestamp" >= {since_epoch}'
+        f"WHERE day >= '{day}' AND \"timestamp\" >= {since_epoch}"
     )
     
     response = athena.start_query_execution(

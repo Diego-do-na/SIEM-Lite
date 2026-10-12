@@ -1,7 +1,8 @@
 locals {
     lambda_roles = toset([
         "detection", "baseline_updater", "incident_consolidator",
-        "incident_exporter", "weekly_summary", "soar_response"
+        "incident_exporter", "weekly_summary", "soar_response",
+        "api_incidents", "api_stats", "api_analytics", "api_health"
     ])
 
     # Bedrock: the inference profile plus the foundation model behind it (any region, since the "us." profile routes across regions)
@@ -17,22 +18,6 @@ data "aws_iam_policy_document" "lambda_assume" {
         principals {
             type = "Service"
             identifiers = ["lambda.amazonaws.com"]
-        }
-    }
-}
-
-data "aws_iam_policy_document" "glue_assume" {
-    statement {
-        actions = ["sts:AssumeRole"]
-        principals {
-            type = "Service"
-            identifiers = ["glue.amazonaws.com"]
-        }
-        # Confused deputy protection: only Glue acting for this account can use the role
-        condition {
-            test = "StringEquals"
-            variable = "aws:SourceAccount"
-            values = [data.aws_caller_identity.current.account_id]
         }
     }
 }
@@ -121,7 +106,7 @@ resource "aws_iam_role_policy" "incident_consolidator" {
     policy = data.aws_iam_policy_document.incident_consolidator.json
 }
 
-# incident_exporter: reads the incident stream, writes to the raw bucket
+# incident_exporter: reads the incident stream, writes the original event to raw and the curated row to processed
 data "aws_iam_policy_document" "incident_exporter" {
     statement {
         actions = ["dynamodb:GetRecords", "dynamodb:GetShardIterator", "dynamodb:DescribeStream"]
@@ -133,7 +118,7 @@ data "aws_iam_policy_document" "incident_exporter" {
     }
     statement {
         actions = ["s3:PutObject"]
-        resources = ["${aws_s3_bucket.raw.arn}/*"]
+        resources = ["${aws_s3_bucket.raw.arn}/*", "${aws_s3_bucket.processed.arn}/incidents/*"]
     }
 }
 
@@ -218,34 +203,80 @@ resource "aws_iam_role_policy" "soar_response" {
     policy = data.aws_iam_policy_document.soar_response.json
 }
 
-# Glue: one role shared by the transformer Job and the crawler
-resource "aws_iam_role" "glue" {
-    name = "${local.prefix}-glue"
-    assume_role_policy = data.aws_iam_policy_document.glue_assume.json
-}
-
-resource "aws_iam_role_policy_attachment" "glue_service" {
-    role = aws_iam_role.glue.name
-    policy_arn = "arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole"
-}
-
-data "aws_iam_policy_document" "glue_data" {
+# API functions: read-only access to the incidents, one policy per function
+data "aws_iam_policy_document" "api_incidents" {
     statement {
-        actions = ["s3:GetObject"]
-        resources = ["${aws_s3_bucket.raw.arn}/*"]
+        actions = ["dynamodb:Query", "dynamodb:GetItem"]
+        resources = [aws_dynamodb_table.incident_reports.arn]
+    }
+}
+
+resource "aws_iam_role_policy" "api_incidents" {
+    name = "api-incidents"
+    role = aws_iam_role.lambda["api_incidents"].id
+    policy = data.aws_iam_policy_document.api_incidents.json
+}
+
+# api_stats: counts the incidents and keeps the result in the cache table
+data "aws_iam_policy_document" "api_stats" {
+    statement {
+        actions = ["dynamodb:Query"]
+        resources = [aws_dynamodb_table.incident_reports.arn]
     }
     statement {
-        actions = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
-        resources = ["${aws_s3_bucket.processed.arn}/*", "${aws_s3_bucket.glue_assets.arn}/*"]
+        actions = ["dynamodb:GetItem", "dynamodb:PutItem"]
+        resources = [aws_dynamodb_table.api_cache.arn]
+    }
+}
+
+resource "aws_iam_role_policy" "api_stats" {
+    name = "api-stats"
+    role = aws_iam_role.lambda["api_stats"].id
+    policy = data.aws_iam_policy_document.api_stats.json
+}
+
+# api_analytics: reads the newest incident as the cache version, runs Athena, keeps the answers in the cache table
+data "aws_iam_policy_document" "api_analytics" {
+    statement {
+        actions = ["dynamodb:Query"]
+        resources = [aws_dynamodb_table.incident_reports.arn]
+    }
+    statement {
+        actions = ["dynamodb:GetItem", "dynamodb:PutItem"]
+        resources = [aws_dynamodb_table.api_cache.arn]
+    }
+    statement {
+        actions = ["athena:StartQueryExecution", "athena:GetQueryExecution", "athena:GetQueryResults", "athena:StopQueryExecution"]
+        resources = [aws_athena_workgroup.this.arn]
+    }
+    statement {
+        actions = ["glue:GetDatabase", "glue:GetTable", "glue:GetPartitions"]
+        resources = [
+            "arn:aws:glue:${var.aws_region}:${data.aws_caller_identity.current.account_id}:catalog",
+            aws_glue_catalog_database.catalog.arn,
+            "arn:aws:glue:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/${aws_glue_catalog_database.catalog.name}/*"
+        ]
+    }
+    statement {
+        actions = ["s3:GetObject"]
+        resources = ["${aws_s3_bucket.processed.arn}/*"]
     }
     statement {
         actions = ["s3:ListBucket"]
-        resources = [aws_s3_bucket.raw.arn, aws_s3_bucket.processed.arn, aws_s3_bucket.glue_assets.arn]
+        resources = [aws_s3_bucket.processed.arn]
+    }
+    statement {
+        actions = ["s3:GetObject", "s3:PutObject"]
+        resources = ["${aws_s3_bucket.athena_results.arn}/*"]
+    }
+    statement {
+        actions = ["s3:ListBucket", "s3:GetBucketLocation"]
+        resources = [aws_s3_bucket.athena_results.arn]
     }
 }
 
-resource "aws_iam_role_policy" "glue_data" {
-    name = "glue-data"
-    role = aws_iam_role.glue.id
-    policy = data.aws_iam_policy_document.glue_data.json
+resource "aws_iam_role_policy" "api_analytics" {
+    name = "api-analytics"
+    role = aws_iam_role.lambda["api_analytics"].id
+    policy = data.aws_iam_policy_document.api_analytics.json
 }
