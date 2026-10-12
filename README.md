@@ -255,7 +255,6 @@ backend/
     pipeline/    detection, baseline_updater, soar_response,
                  incident_consolidator, incident_exporter, weekly_summary
     api/         incidents, stats, analytics, health
-    analytics/   transformer script kept for the 1.1 compaction job
   shared/        scoring, MITRE map, behavior baseline, API utilities
   infra/         Terraform (one file per resource type) + .checkov.yaml
 frontend/        static dashboard (config.example.js -> config.js)
