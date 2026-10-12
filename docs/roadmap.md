@@ -6,7 +6,7 @@ Detection, scoring, SOAR-lite, Bedrock triage, incremental analytics, read-only 
 dashboard, Terraform + CI (validate, Checkov, protected `main`).
 
 Remaining before tagging 1.0: validate against real AWS (apply, auth, API, ETL, Athena, dashboard), host
-the dashboard on S3 + CloudFront, CloudWatch 4XX/5XX alarm and README update.
+the dashboard on S3 + CloudFront, and README update.
 
 ## 1.1: hardening and depth
 
@@ -19,7 +19,6 @@ the dashboard on S3 + CloudFront, CloudWatch 4XX/5XX alarm and README update.
 - `POST /actions` (admin group only): acknowledge/close incident, manual SOAR re-run, with an audit trail.
 - Search through Athena when `FilterExpression` stops being viable.
 - Atomic counters (updated from the stream) for `/stats` if the table grows.
-- AWS Budget and alarms in Terraform.
 - Log-group retention for all Lambdas.
 
 ## 1.2: product

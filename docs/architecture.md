@@ -116,4 +116,4 @@ Everything is pay-per-use and idle-free; the target is under USD 1 per month at 
 | Bedrock | the main variable cost; one call per incident plus one weekly summary |
 
 Guard rails: Athena per-query scan cutoff (1 GiB), API throttling (10 rps, burst 20), cache floor of 60 s,
-and a manual AWS Budget alert.
+CloudWatch alarms (API 5XX/4XX, Lambda errors) and an AWS Budget, all emailing `alert_email`.

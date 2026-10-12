@@ -94,8 +94,9 @@ policies in one place for audit).
 
 ## 10. Abuse control
 
-Stage throttling (10 rps, burst 20), Athena cutoff, cache floor, small Lambdas. CloudWatch 4XX/5XX alarm and
-an AWS Budget are planned; WAF is 1.1.
+Stage throttling (10 rps, burst 20), Athena cutoff, cache floor, small Lambdas. CloudWatch alarms on API 5XX,
+API 4XX bursts and Lambda errors, and an AWS Budget, notify by email (the alarms use their own SNS topic:
+CloudWatch cannot publish to a topic encrypted with the AWS managed key, and a CMK is 1.1). WAF is 1.1.
 
 ## 11. Frontend: static SPA on private S3 + CloudFront
 

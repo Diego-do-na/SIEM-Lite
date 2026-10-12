@@ -110,6 +110,12 @@ variable "enable_cli_auth" {
     default = false
 }
 
+variable "monthly_budget_usd" {
+    description = "Monthly cost (USD) of the whole AWS account that triggers the budget emails"
+    type = number
+    default = 5
+}
+
 variable "tags" {
     description = "Common tags applied to all resources"
     type = map(string)
