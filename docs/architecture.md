@@ -96,7 +96,6 @@ backend/
   functions/
     pipeline/      detection, baseline_updater, soar_response, consolidator, incident_exporter, weekly_summary
     api/           incidents, stats, analytics, health
-    analytics/     siem_lite_incident_transformer.py (kept for the 1.1 compaction job)
   shared/          api_utils.py (responses, cursor, cache rule, counts)
   infra/           one .tf per service (api, athena, cognito, dynamodb, glue, iam, lambda, s3, sns, ...)
 frontend/          static dashboard
