@@ -32,8 +32,7 @@ Each entry: context, decision, alternatives and why they lost, and what it costs
   projection**. No job, no crawler, no workflow.
 - **Why.** At this volume (tens to hundreds of incidents per month) one tiny object per incident costs
   cents, data is queryable immediately, and the dashboard can be live. The small-files problem is real at
-  scale, so it is deferred, not ignored: 1.1 adds a periodic compaction job to Parquet (the transformer
-  script is kept in the repo for that).
+  scale, so it is deferred, not ignored: 1.1 adds a periodic compaction job to Parquet.
 - **Raw vs processed is not redundancy.** Raw is the immutable original (audit, reprocessing); processed is
   a curated, flat projection shaped for queries.
 - **Cost.** About USD 0.04/month versus about USD 0.3 to 0.5 for the Glue job and crawler.
@@ -94,8 +93,9 @@ policies in one place for audit).
 
 ## 10. Abuse control
 
-Stage throttling (10 rps, burst 20), Athena cutoff, cache floor, small Lambdas. CloudWatch 4XX/5XX alarm and
-an AWS Budget are planned; WAF is 1.1.
+Stage throttling (10 rps, burst 20), Athena cutoff, cache floor, small Lambdas. CloudWatch alarms on API 5XX,
+API 4XX bursts and Lambda errors, and an AWS Budget, notify by email (the alarms use their own SNS topic:
+CloudWatch cannot publish to a topic encrypted with the AWS managed key, and a CMK is 1.1). WAF is 1.1.
 
 ## 11. Frontend: static SPA on private S3 + CloudFront
 
