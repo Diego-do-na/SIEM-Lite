@@ -9,3 +9,8 @@ backend/infra/build/
 
 # macOS
 .DS_Store
+__pycache__/
+*.pyc
+
+# Per-deployment frontend settings
+frontend/config.js
