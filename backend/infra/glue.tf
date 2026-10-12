@@ -1,6 +1,4 @@
 locals {
-    # Edit this path to wherever the transformer script lives in the repo
-    glue_script_path = "${path.module}/../functions/analytics/siem_lite_incident_transformer.py"
     # Athena does not accept dashes in database names
     glue_database_name = "${replace(local.prefix, "-", "_")}_catalog"
 }
@@ -9,110 +7,113 @@ resource "aws_glue_catalog_database" "catalog" {
     name = local.glue_database_name
 }
 
-resource "aws_glue_security_configuration" "this" {
-    name = "${local.prefix}-glue-security"
-
-    encryption_configuration {
-        s3_encryption {
-            s3_encryption_mode = "SSE-S3"
-        }
-        cloudwatch_encryption {
-            cloudwatch_encryption_mode = "DISABLED"
-        }
-        job_bookmarks_encryption {
-            job_bookmarks_encryption_mode = "DISABLED"
-        }
-    }
-}
-
-# The script is uploaded from the repo, so the Job always runs the versioned code
-resource "aws_s3_object" "transformer_script" {
-    bucket = aws_s3_bucket.glue_assets.id
-    key = "scripts/siem_lite_incident_transformer.py"
-    source = local.glue_script_path
-    etag = filemd5(local.glue_script_path)
-}
-
-resource "aws_glue_job" "incident_transformer" {
-    name = "${local.prefix}-incident-transformer"
-    role_arn = aws_iam_role.glue.arn
-    glue_version = "5.1"
-    worker_type = "G.1X"
-    number_of_workers = 2
-    timeout = 30
-    security_configuration = aws_glue_security_configuration.this.name
-
-    command {
-        name = "glueetl"
-        python_version = "3"
-        script_location = "s3://${aws_s3_bucket.glue_assets.bucket}/${aws_s3_object.transformer_script.key}"
-    }
-
-    default_arguments = {
-        "--job-language" = "python"
-        # Bookmark enabled: without it every run would reprocess and duplicate all of raw
-        "--job-bookmark-option" = "job-bookmark-enable"
-        "--enable-glue-datacatalog" = ""
-        "--enable-metrics" = ""
-        "--enable-job-insights" = "true"
-        "--enable-observability-metrics" = "true"
-        "--enable-continuous-cloudwatch-log" = "true"
-        "--enable-spark-ui" = "true"
-        "--spark-event-logs-path" = "s3://${aws_s3_bucket.glue_assets.bucket}/sparkHistoryLogs/"
-        "--TempDir" = "s3://${aws_s3_bucket.glue_assets.bucket}/temporary/"
-        "--conf" = "spark.eventLog.rolling.enabled=true --conf spark.sql.catalog.glue_catalog.glue.skip-name-validation=true"
-        "--RAW_BUCKET" = aws_s3_bucket.raw.bucket
-        "--PROCESSED_BUCKET" = aws_s3_bucket.processed.bucket
-    }
-}
-
-resource "aws_glue_crawler" "incident_crawler" {
-    name = "${local.prefix}-incident-crawler"
-    role = aws_iam_role.glue.arn
+# The incident_exporter writes one curated JSON line per incident under incidents/day=YYYY-MM-DD/.
+# Partition projection lets Athena compute the partitions from the path, so no crawler or ETL job is needed.
+# One date partition (not year/month/day): every query must filter on `day`, so Athena only lists the days
+# in range instead of every projected partition (a year/month/day layout projects thousands of paths)
+resource "aws_glue_catalog_table" "incidents" {
+    name = "incidents"
     database_name = aws_glue_catalog_database.catalog.name
-    security_configuration = aws_glue_security_configuration.this.name
+    table_type = "EXTERNAL_TABLE"
 
-    s3_target {
-        path = "s3://${aws_s3_bucket.processed.bucket}/"
+    parameters = {
+        EXTERNAL = "TRUE"
+        "projection.enabled" = "true"
+        "projection.day.type" = "date"
+        "projection.day.format" = "yyyy-MM-dd"
+        "projection.day.range" = "2025-01-01,NOW"
+        "projection.day.interval" = "1"
+        "projection.day.interval.unit" = "DAYS"
+        "storage.location.template" = "s3://${aws_s3_bucket.processed.bucket}/incidents/day=$${day}"
     }
 
-    schema_change_policy {
-        update_behavior = "UPDATE_IN_DATABASE"
-        delete_behavior = "DEPRECATE_IN_DATABASE"
+    partition_keys {
+        name = "day"
+        type = "string"
     }
-}
 
-resource "aws_glue_workflow" "analytics" {
-    name = "${local.prefix}-analytics-workflow"
-}
+    storage_descriptor {
+        location = "s3://${aws_s3_bucket.processed.bucket}/incidents/"
+        input_format = "org.apache.hadoop.mapred.TextInputFormat"
+        output_format = "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
 
-resource "aws_glue_trigger" "weekly_etl" {
-    name = "${local.prefix}-weekly-etl-trigger"
-    type = "SCHEDULED"
-    schedule = "cron(0 5 ? * SUN *)"
-    workflow_name = aws_glue_workflow.analytics.name
-    # Same switch as the EventBridge rules, so a test deployment does not run the Job on its own
-    start_on_creation = var.enable_event_rules
-
-    actions {
-        job_name = aws_glue_job.incident_transformer.name
-    }
-}
-
-resource "aws_glue_trigger" "crawler_after_etl" {
-    name = "${local.prefix}-crawler-after-etl-trigger"
-    type = "CONDITIONAL"
-    workflow_name = aws_glue_workflow.analytics.name
-    start_on_creation = var.enable_event_rules
-
-    predicate {
-        conditions {
-            job_name = aws_glue_job.incident_transformer.name
-            state = "SUCCEEDED"
+        ser_de_info {
+            serialization_library = "org.openx.data.jsonserde.JsonSerDe"
         }
-    }
 
-    actions {
-        crawler_name = aws_glue_crawler.incident_crawler.name
+        columns {
+            name = "incidentid"
+            type = "string"
+        }
+
+        columns {
+            name = "severity"
+            type = "string"
+        }
+
+        columns {
+            name = "globalscore"
+            type = "int"
+        }
+
+        columns {
+            name = "useridentity"
+            type = "string"
+        }
+
+        columns {
+            name = "sourceipaddress"
+            type = "string"
+        }
+
+        columns {
+            name = "timestamp"
+            type = "bigint"
+        }
+
+        columns {
+            name = "firstseen"
+            type = "bigint"
+        }
+
+        columns {
+            name = "lastseen"
+            type = "bigint"
+        }
+
+        columns {
+            name = "duration"
+            type = "bigint"
+        }
+
+        columns {
+            name = "mitretechniques"
+            type = "array<string>"
+        }
+
+        columns {
+            name = "actionnames"
+            type = "array<string>"
+        }
+
+        columns {
+            name = "eventcount"
+            type = "bigint"
+        }
+
+        columns {
+            name = "responsetaken"
+            type = "boolean"
+        }
+
+        columns {
+            name = "responsesucceeded"
+            type = "boolean"
+        }
+
+        columns {
+            name = "hourutc"
+            type = "int"
+        }
     }
 }

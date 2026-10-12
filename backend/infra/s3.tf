@@ -3,7 +3,6 @@ locals {
         raw = aws_s3_bucket.raw.id
         processed = aws_s3_bucket.processed.id
         athena_results = aws_s3_bucket.athena_results.id
-        glue_assets = aws_s3_bucket.glue_assets.id
     }
 }
 
@@ -19,10 +18,6 @@ resource "aws_s3_bucket" "processed" {
 
 resource "aws_s3_bucket" "athena_results" {
     bucket = "${local.prefix}-athena-query-results-${data.aws_caller_identity.current.account_id}"
-}
-
-resource "aws_s3_bucket" "glue_assets" {
-    bucket = "${local.prefix}-glue-assets-${data.aws_caller_identity.current.account_id}"
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "this" {

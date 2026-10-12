@@ -98,6 +98,18 @@ variable "enable_event_rules" {
     default = true
 }
 
+variable "dashboard_origins" {
+    description = "Origins allowed to call the API and to receive the Cognito login redirect, without a trailing slash"
+    type = list(string)
+    default = ["http://localhost:5173"]
+}
+
+variable "enable_cli_auth" {
+    description = "Allow getting Cognito tokens from the CLI with the admin auth flow. Only for testing (scripts/smoke-test.sh); keep false in any shared deployment"
+    type = bool
+    default = false
+}
+
 variable "tags" {
     description = "Common tags applied to all resources"
     type = map(string)

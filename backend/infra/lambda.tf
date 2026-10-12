@@ -2,6 +2,33 @@ locals {
     runtime = "python3.14"
     functions_with_shared = toset(["detection", "baseline_updater", "incident_consolidator"])
     functions_standalone = toset(["incident_exporter", "weekly_summary", "soar_response"])
+    functions_api = toset(["incidents", "stats", "analytics", "health"])
+
+    # API Gateway gives up at 30 seconds, so analytics (it may wait for Athena) stays just under
+    api_function_timeout = {
+        incidents = 10
+        stats = 10
+        analytics = 29
+        health = 3
+    }
+
+    api_function_env = {
+        incidents = {
+            INCIDENT_TABLE_NAME = aws_dynamodb_table.incident_reports.name
+        }
+        stats = {
+            INCIDENT_TABLE_NAME = aws_dynamodb_table.incident_reports.name
+            CACHE_TABLE_NAME = aws_dynamodb_table.api_cache.name
+        }
+        analytics = {
+            INCIDENT_TABLE_NAME = aws_dynamodb_table.incident_reports.name
+            CACHE_TABLE_NAME = aws_dynamodb_table.api_cache.name
+            ATHENA_DATABASE = aws_glue_catalog_database.catalog.name
+            ATHENA_TABLE = aws_glue_catalog_table.incidents.name
+            ATHENA_WORKGROUP = aws_athena_workgroup.this.name
+        }
+        health = {}
+    }
 }
 
 # Functions that import the shared package: handler at the zip root, shared/ next to it
@@ -12,6 +39,26 @@ data "archive_file" "with_shared" {
 
     source {
         content = file("${path.module}/../functions/pipeline/${each.key}/handler.py")
+        filename = "handler.py"
+    }
+
+    dynamic "source" {
+        for_each = fileset("${path.module}/../shared", "*.py")
+        content {
+            content = file("${path.module}/../shared/${source.value}")
+            filename = "shared/${source.value}"
+        }
+    }
+}
+
+# API functions: same layout as above, but the handlers live in functions/api
+data "archive_file" "api" {
+    for_each = local.functions_api
+    type = "zip"
+    output_path = "${path.module}/build/api_${each.key}.zip"
+
+    source {
+        content = file("${path.module}/../functions/api/${each.key}/handler.py")
         filename = "handler.py"
     }
 
@@ -113,6 +160,7 @@ resource "aws_lambda_function" "incident_exporter" {
     environment {
         variables = {
             RAW_BUCKET_NAME = aws_s3_bucket.raw.bucket
+            PROCESSED_BUCKET_NAME = aws_s3_bucket.processed.bucket
         }
     }
 }
@@ -131,8 +179,7 @@ resource "aws_lambda_function" "weekly_summary" {
         variables = {
             SNS_TOPIC_ARN = aws_sns_topic.alerts.arn
             ATHENA_DATABASE = aws_glue_catalog_database.catalog.name
-            # The crawler names the table after the bucket, with dashes turned into underscores
-            ATHENA_TABLE = replace(aws_s3_bucket.processed.bucket, "-", "_")
+            ATHENA_TABLE = aws_glue_catalog_table.incidents.name
             ATHENA_OUTPUT_LOCATION = "s3://${aws_s3_bucket.athena_results.bucket}/"
             ATHENA_WORKGROUP = aws_athena_workgroup.this.name
             BEDROCK_MODEL_ID = var.bedrock_model_id
@@ -188,4 +235,29 @@ resource "aws_lambda_event_source_mapping" "incident_exporter" {
     batch_size = 100
 
     depends_on = [aws_iam_role_policy.incident_exporter]
+}
+
+resource "aws_lambda_function" "api" {
+    for_each = local.functions_api
+    function_name = "${local.prefix}-api-${each.key}"
+    role = aws_iam_role.lambda["api_${each.key}"].arn
+    runtime = local.runtime
+    handler = "handler.lambda_handler"
+    timeout = local.api_function_timeout[each.key]
+    memory_size = 128
+    filename = data.archive_file.api[each.key].output_path
+    source_code_hash = data.archive_file.api[each.key].output_base64sha256
+
+    dynamic "environment" {
+        for_each = length(local.api_function_env[each.key]) > 0 ? [1] : []
+        content {
+            variables = local.api_function_env[each.key]
+        }
+    }
+
+    depends_on = [
+        aws_iam_role_policy.api_incidents,
+        aws_iam_role_policy.api_stats,
+        aws_iam_role_policy.api_analytics
+    ]
 }

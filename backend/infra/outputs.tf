@@ -38,7 +38,22 @@ output "athena_workgroup" {
     value = aws_athena_workgroup.this.name
 }
 
-output "glue_workflow" {
-    description = "Glue workflow that runs the weekly ETL"
-    value = aws_glue_workflow.analytics.name
+output "api_url" {
+    description = "Base URL of the HTTP API"
+    value = aws_apigatewayv2_api.this.api_endpoint
+}
+
+output "cognito_user_pool_id" {
+    description = "Cognito user pool of the dashboard"
+    value = aws_cognito_user_pool.this.id
+}
+
+output "cognito_client_id" {
+    description = "Cognito app client the dashboard logs in with"
+    value = aws_cognito_user_pool_client.dashboard.id
+}
+
+output "cognito_login_url" {
+    description = "Base URL of the Cognito hosted login page"
+    value = "https://${aws_cognito_user_pool_domain.this.domain}.auth.${var.aws_region}.amazoncognito.com"
 }
