@@ -18,6 +18,9 @@ resource "aws_s3_bucket" "processed" {
 
 resource "aws_s3_bucket" "athena_results" {
     bucket = "${local.prefix}-athena-query-results-${data.aws_caller_identity.current.account_id}"
+    # Only temporary query results (they expire in 30 days), so terraform destroy can remove it with them.
+    # raw and processed hold incident data and are deliberately not destroyed with objects inside
+    force_destroy = true
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "this" {

@@ -23,6 +23,7 @@ Copy `backend/infra/terraform.tfvars.example` to `terraform.tfvars` (git-ignored
 | `enable_config` | `false` | AWS Config recorder used by SOAR to recreate a deleted trail |
 | `enable_event_rules` | `true` | `false` deploys everything without wiring CloudTrail events into detection (safe for testing) |
 | `dashboard_origins` | `["http://localhost:5173"]` | Origins allowed by CORS and by the Cognito callback/logout URLs |
+| `monthly_budget_usd` | `5` | Account-wide monthly budget; emails `alert_email` at 80% actual and 100% forecast |
 | `enable_cli_auth` | `false` | Tokens via CLI, only for testing with `scripts/smoke-test.sh`. Keep `false` for anything shared |
 
 ## Deploy
@@ -99,8 +100,17 @@ it from Athena (database `<prefix>_catalog`, workgroup `<prefix>-workgroup`, tab
 terraform destroy
 ```
 
-S3 buckets with objects, Cognito users and CloudWatch logs may need manual cleanup depending on
-`force_destroy` and retention settings.
+The Athena results bucket is removed with its temporary files. The `raw` and `processed` buckets hold
+incident data and are deliberately not destroyed while they contain objects: empty them first.
+
+```bash
+aws s3 rm s3://<raw bucket> --recursive
+aws s3 rm s3://<processed bucket> --recursive
+terraform destroy
+```
+
+CloudWatch log groups that Lambda creates by itself (`/aws/lambda/<function>`) are not managed by
+Terraform and stay behind; delete them by hand if you want the account clean.
 
 ## CI
 
