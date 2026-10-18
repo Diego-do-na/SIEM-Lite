@@ -16,7 +16,8 @@ different for every deployment.
 ## Demo mode (no AWS needed)
 
 Open `http://localhost:5173/?mock=1` to see the whole dashboard with generated data. The calls go through the
-same paths as the real API, so loading, filters, pagination and the detail panel all work.
+same paths as the real API, so loading, filters, pagination and the incident page all work.
+The demo incidents follow the real rules (actions, weights, techniques and automatic responses from `js/mitre.js`, a copy of the backend tables). They are generated from a moment kept per tab, so reloading keeps the same incidents.
 
 | URL | Shows |
 |---|---|
@@ -29,10 +30,29 @@ same paths as the real API, so loading, filters, pagination and the detail panel
 | Route | Data | State |
 |---|---|---|
 | `#/overview` | `/analytics/severity-trend`, `/analytics/mitre-techniques`, `/incidents`, `/health` | live |
-| `#/incidents` | `/incidents` with filters and keyset pagination, `/incidents/{severity}/{timestamp}` | live |
-| `#/analytics` | the four `/analytics/*` reports plus statistics computed from `/incidents` (see below) | live |
+| `#/incidents` | `/incidents` with filters and keyset pagination (also `#/incidents?technique=T1485`) | live |
+| `#/incidents/<severity>/<timestamp>` | `/incidents/{severity}/{timestamp}`: one incident as a page, with the risk-score ring, score breakdown, SOAR response and timeline | live |
+| `#/analytics` | the four `/analytics/*` reports plus statistics computed from `/incidents` (see below), the ATT&CK coverage matrix, and a region map | live; the region map is a preview (the list endpoint has no `awsRegion` until 1.1) |
 | `#/reports`, `#/reports/<id>` | needs a reports endpoint (1.1). The list and each report are separate pages | layout only |
 | `#/settings` | needs richer `/health` and `POST /actions` (1.1) | layout only |
+
+## MITRE ATT&CK
+
+`js/mitre.js` is the dictionary: the four techniques the detection emits (T1562.008, T1562.007, T1485 and the generic T1110),
+the actions that map to each, their weights, and what SOAR does. Select any technique id, on any page, to open its card
+(what it is, how it shows up in CloudTrail, how SIEM Lite detects and answers it, how to reduce the risk, and a
+"View incidents" link that opens the list filtered by it). If a rule is added in `backend/shared/mitre.py` or `scoring.py`,
+add it to this file too.
+
+## Focus mode and the Total range
+
+Selecting a chart (or its expand icon) grows the card to the middle of the screen over a blurred page, with the chart
+drawing itself again. It closes only with the X button or Esc, never by clicking outside. The card is moved, not copied
+(`js/focus.js`), so live refresh keeps updating it.
+
+The range selector has a **Total** option. Totals by severity are exact (`/stats`, all time). The four Athena reports accept
+at most 90 days today, so those cards show the last 90 days and say so (`API_MAX_DAYS` in `js/data.js`; raise it if the
+API's `ALLOWED_DAYS` grows). The statistics computed in the browser use the latest 600 incidents.
 
 ## Live refresh
 
@@ -55,22 +75,26 @@ API's `lastIncidentAt`, so switching tabs or ranges does not call the API again 
 ## Structure
 
 ```
-index.html            shell (sidebar, top bar, drawer), no inline scripts or styles
+index.html            shell (sidebar, top bar, parameters bar, technique card), no inline scripts or styles
 styles.css            design tokens first (light and dark), then components
 js/main.js            sign-in, routing, theme, polling
 js/auth.js            Cognito PKCE
 js/api.js, data.js    fetch wrapper and the data layer (endpoints, memo)
 js/charts.js          charts (area, donut, bars, histogram, heatmap, technique matrix)
 js/stats.js           statistics computed from incidents (pure functions, no DOM)
-js/drawer.js          incident detail panel
+js/mitre.js           ATT&CK dictionary, action weights, SOAR answers
+js/mitrecard.js       the technique card
+js/focus.js           focus mode for chart cards
+js/worldmap.js        static world outline and AWS region positions (generated once from Natural Earth)
+fonts/                IBM Plex Sans and JetBrains Mono (self-hosted, SIL OFL licenses included)
 js/mock.js            demo data, loaded only with ?mock
-js/views/             overview, incidents, analytics, reports, settings, shared UI
+js/views/             overview, incidents, incident (page), analytics, matrix, regionmap, reports, settings, shared UI
 ```
 
 ## Restyling
 
-Colors, type and radii are CSS variables at the top of `styles.css` (the palette comes from the Figma
-design). Severity colors are used only for severity; technique charts use the separate `--cat-*` ramp.
+Colors, type and radii are CSS variables at the top of `styles.css`. Text is IBM Plex Sans; identifiers, IPs, ARNs and
+numbers in tables use JetBrains Mono (`--font` and `--mono`). Severity colors are used only for severity; technique charts use the separate `--cat-*` ramp.
 
 ## Motion
 
@@ -81,5 +105,5 @@ All of it is off for people who set `prefers-reduced-motion`. Keyframes are in t
 
 - Tokens live in `sessionStorage`, not `localStorage`; only the theme and sidebar state use `localStorage`.
 - Every value that comes from the API is written with `textContent`; there is no `innerHTML` anywhere.
-- No inline scripts, no inline event handlers and no external scripts or fonts, so the page works under
-  `script-src 'self'` when it is served from CloudFront with security headers.
+- No inline scripts, no inline event handlers and no external scripts or fonts (the fonts are in `fonts/`), so the page works under
+  `script-src 'self'; font-src 'self'` when it is served from CloudFront with security headers.

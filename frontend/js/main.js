@@ -3,6 +3,7 @@
 import * as auth from "./auth.js";
 import { enableMock, isMock, setSignedOutHandler } from "./api.js";
 import * as data from "./data.js";
+import { closeFocus } from "./focus.js";
 import { $, el, icon, ICONS, brandMark, clock, plural, reducedMotion } from "./dom.js";
 
 const ROUTES = [
@@ -93,6 +94,7 @@ async function showRoute(firstLoad) {
     const { route, param, query } = routeFromHash();
     app.visited++;
     const token = ++app.nav;
+    closeFocus(true);
     if (app.view) app.view.destroy();
     app.view = null;
     app.route = route;
@@ -249,7 +251,7 @@ function bind() {
         const btn = e.target.closest("button");
         if (!btn) return;
         app.days = Number(btn.dataset.days);
-        $("#p-window").textContent = "Last " + app.days + " days · UTC";
+        $("#p-window").textContent = app.days ? "Last " + app.days + " days · UTC" : "All time · UTC";
         document.querySelectorAll("#range button").forEach((b) => b.setAttribute("aria-pressed", String(b === btn)));
         if (app.view) app.view.refresh();
     });

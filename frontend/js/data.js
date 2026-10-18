@@ -6,6 +6,11 @@ import { api } from "./api.js";
 import { SEVERITIES, dayKey } from "./dom.js";
 
 export const version = { current: null };
+
+// The Athena reports accept up to this many days. "Total" in the interface (0 days) asks for this much from them
+// and shows the exact all-time figures where the API has them (/stats). Raise it if the API allows more days.
+export const API_MAX_DAYS = 90;
+export const apiDays = (days) => (days > 0 ? Math.min(days, API_MAX_DAYS) : API_MAX_DAYS);
 const memo = new Map();
 
 export function clearMemo() {
@@ -47,9 +52,9 @@ export const trend = () => memoized("trend", async () => {
     return { days: fillDays(res.data, 90), generatedAt: res.generatedAt, cached: res.cached };
 });
 
-export const mitre = (days) => memoized("mitre" + days, () => api("/analytics/mitre-techniques?days=" + days));
-export const topIps = (days) => memoized("ips" + days, () => api("/analytics/top-ips?days=" + days));
-export const scores = (days) => memoized("scores" + days, () => api("/analytics/score-distribution?days=" + days));
+export const mitre = (days) => memoized("mitre" + apiDays(days), () => api("/analytics/mitre-techniques?days=" + apiDays(days)));
+export const topIps = (days) => memoized("ips" + apiDays(days), () => api("/analytics/top-ips?days=" + apiDays(days)));
+export const scores = (days) => memoized("scores" + apiDays(days), () => api("/analytics/score-distribution?days=" + apiDays(days)));
 export const latest = (limit) => memoized("latest" + limit, () => api("/incidents?limit=" + limit));
 // The statistics that the four reports do not cover (activity by hour, tactics, users, mitigation, duration)
 // are computed in the browser from the most recent incidents of the range: up to 6 pages of 100, fetched
@@ -58,7 +63,7 @@ const SAMPLE_PAGE = 100;
 const SAMPLE_PAGES = 6;
 
 export const sample = (days) => memoized("sample" + days, async () => {
-    const from = Math.floor(Date.now() / 1000) - days * 86400;
+    const from = days > 0 ? Math.floor(Date.now() / 1000) - days * 86400 : 0;
     let items = [];
     let cursor = null;
     for (let page = 0; page < SAMPLE_PAGES; page++) {
@@ -84,13 +89,14 @@ export function incident(severity, timestamp) {
 }
 
 // Totals per severity for the last `n` days and for the `n` days before them (only when the 90 days cover both)
-export function summarize(days90, n) {
+export function summarize(days90, requested) {
+    const n = requested > 0 ? requested : days90.length;
     const sum = (rows) => rows.reduce((acc, r) => {
         SEVERITIES.forEach((s) => { acc[s] += r[s]; });
         acc.total += r.total;
         return acc;
     }, { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0, total: 0 });
     const current = days90.slice(-n);
-    const previous = n * 2 <= days90.length ? days90.slice(-2 * n, -n) : null;
+    const previous = requested > 0 && n * 2 <= days90.length ? days90.slice(-2 * n, -n) : null;
     return { rows: current, now: sum(current), before: previous ? sum(previous) : null };
 }

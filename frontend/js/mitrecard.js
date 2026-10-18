@@ -3,7 +3,7 @@
 
 import * as data from "./data.js";
 import { el, icon, ICONS, fmtNum } from "./dom.js";
-import { TECHNIQUES, ACTIONS } from "./mitre.js";
+import { TECHNIQUES, ACTIONS, MITRE_NOTICE } from "./mitre.js";
 
 let opener = null;
 let run = 0;
@@ -46,6 +46,7 @@ function render(id) {
         const a = ACTIONS[name];
         return a ? el("li", {}, [el("code", { text: name }), el("span", { class: "m-weight", text: a.weight + " pts" })]) : el("li", {}, [el("span", { text: name })]);
     });
+    const bullets = (list) => el("ul", { class: "m-list" }, list.map((m) => el("li", { text: m })));
     return [
         el("header", { class: "m-head" }, [
             el("div", { class: "m-ids" }, [el("span", { class: "chip", text: t.id }), el("span", { class: "m-tactic", text: t.tactic })]),
@@ -56,16 +57,22 @@ function render(id) {
                 el("h2", { id: "modal-title", text: t.name }),
                 t.parent ? el("p", { class: "muted", text: "Sub-technique of " + t.parent }) : null
             ]),
-            el("p", { text: t.summary }),
+            el("div", { class: "m-about" }, t.about.map((p) => el("p", { text: p }))),
             el("div", { class: "m-stat" }, [count]),
-            section("In AWS, the events that map to it", [el("ul", { class: "m-events" }, events)]),
+            section("In AWS", [el("p", { text: t.inAws }), el("ul", { class: "m-events" }, events)]),
+            section("Seen in the real world", [el("ul", { class: "m-examples" }, t.examples.map((x) => el("li", {}, [el("b", { text: x.name }), el("span", { text: x.text })])))]),
             section("How SIEM Lite detects it", [el("p", { text: t.detection })]),
             section("Automated response", [el("p", { text: t.response })]),
-            section("How to reduce the risk", [el("ul", { class: "m-list" }, t.mitigations.map((m) => el("li", { text: m })))]),
+            section("What to check when you see it", [bullets(t.investigate)]),
+            section("Normal activity that can look the same", [bullets(t.benign)]),
+            section("How to reduce the risk", [el("ul", { class: "m-list" }, t.mitigations.map((m) => el("li", {}, [
+                m.id ? el("span", { class: "m-ref", title: m.name, text: m.id }) : null, m.name ? el("b", { text: m.name + ". " }) : null, m.text
+            ])))]),
             el("footer", { class: "m-foot" }, [
                 el("a", { class: "btn btn-primary", href: "#/incidents?technique=" + encodeURIComponent(t.id), text: "View incidents" }),
                 el("a", { class: "btn", href: t.url, target: "_blank", rel: "noopener noreferrer", text: "Open on attack.mitre.org" })
-            ])
+            ]),
+            el("p", { class: "m-notice", text: MITRE_NOTICE })
         ])
     ];
 }

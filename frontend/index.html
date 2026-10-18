@@ -50,6 +50,7 @@
                     <button type="button" data-days="7" aria-pressed="false">7 days</button>
                     <button type="button" data-days="30" aria-pressed="true">30 days</button>
                     <button type="button" data-days="90" aria-pressed="false">90 days</button>
+                    <button type="button" data-days="0" aria-pressed="false" title="Every incident recorded. Charts that come from the API cover up to the last 90 days">Total</button>
                 </div>
                 <span class="param"><small>Window</small><b id="p-window">Last 30 days · UTC</b></span>
                 <span class="param"><small>Last update</small><b id="p-updated">--:--:--</b></span>
@@ -62,6 +63,7 @@
     </div>
 
     <div id="scrim" class="scrim" hidden></div>
+    <div id="focus" class="focus" hidden><div id="focus-holder" class="focus-holder" role="dialog" aria-modal="true" aria-label="Expanded chart"></div></div>
     <div id="modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" hidden></div>
     <div id="tip" class="tip" role="tooltip" hidden></div>
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>

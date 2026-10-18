@@ -61,6 +61,7 @@ export const ICONS = {
     panelLeft: ["M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z", "M9 4v16"],
     download: ["M12 4v11", "M7 11l5 5 5-5", "M5 20h14"],
     close: ["M6 6l12 12", "M18 6L6 18"],
+    expand: ["M4 9V4h5", "M20 9V4h-5", "M4 15v5h5", "M20 15v5h-5"],
     shieldCheck: ["M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z", "M9 12l2 2 4-4"],
     filter: ["M4 6h16", "M7 12h10", "M10 18h4"],
     sparkle: ["M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"],

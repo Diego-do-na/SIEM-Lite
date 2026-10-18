@@ -3,28 +3,38 @@
 
 import { el, icon, ICONS, sevBadge, sevClass, relTime, relTimeShort, fullDate, clock, userShort, techName, attachTip, fmtNum } from "../dom.js";
 import { emptyBlock } from "../charts.js";
+import { openFocus, closeFocus } from "../focus.js";
 
 // A card whose body can be loading, failed (with Retry) or filled, independent of the others:
 // one failing report must not hide the rest of the page
-export function panel({ title, sub, className = "", minHeight = 200, action }) {
+export function panel({ title, sub, className = "", minHeight = 200, action, expandable = true }) {
     const subNode = sub ? el("p", { class: "sub", text: sub }) : null;
     const body = el("div", { class: "panel-body" });
     const foot = el("p", { class: "panel-foot" });
     // When this block was last drawn, like the timestamp on every tile of a SIEM console
     const stamp = el("span", { class: "stamp", hidden: true });
-    const root = el("section", { class: "card panel " + className }, [
-        el("header", { class: "panel-head" }, [el("div", {}, [el("h2", { text: title }), subNode]), action || stamp]),
+    const expandBtn = expandable ? el("button", { class: "icon-btn ghost small expand-btn", type: "button", "aria-label": "Expand " + title, title: "Expand" }, [icon(ICONS.expand)]) : null;
+    const closeBtn = expandable ? el("button", { class: "icon-btn close-btn", type: "button", "aria-label": "Close expanded view", title: "Close (Esc)", onclick: () => closeFocus() }, [icon(ICONS.close)]) : null;
+    const root = el("section", { class: "card panel " + className + (expandable ? " expandable" : "") }, [
+        el("header", { class: "panel-head" }, [el("div", {}, [el("h2", { text: title }), subNode]), el("div", { class: "panel-tools" }, [action || null, stamp, expandBtn, closeBtn])]),
         body,
         foot
     ]);
+    if (expandable) {
+        const expand = (opener) => { if (root.classList.contains("ready") && !root.classList.contains("expanded")) openFocus(root, opener); };
+        expandBtn.addEventListener("click", () => expand(expandBtn));
+        // Selecting the chart itself also expands it; links, buttons and fields inside keep their own behavior
+        body.addEventListener("click", (e) => { if (!e.target.closest("button, a, input, select, label")) expand(expandBtn); });
+    }
     const api = {
         root, body, foot,
-        loading() { body.replaceChildren(el("div", { class: "skel", vars: { "--h": minHeight + "px" } })); },
-        show(node) { body.replaceChildren(node); },
-        empty(text) { body.replaceChildren(emptyBlock(text)); },
+        loading() { root.classList.remove("ready"); body.replaceChildren(el("div", { class: "skel", vars: { "--h": minHeight + "px" } })); },
+        show(node) { root.classList.toggle("ready", !(node.classList && node.classList.contains("empty"))); body.replaceChildren(node); },
+        empty(text) { root.classList.remove("ready"); body.replaceChildren(emptyBlock(text)); },
         setSub(text) { if (subNode) subNode.textContent = text; },
         note(text) { foot.textContent = text || ""; },
         error(err, retry) {
+            root.classList.remove("ready");
             body.replaceChildren(el("div", { class: "error-box" }, [
                 el("p", { text: "Could not load this section. " + (err && err.message ? err.message : "") }),
                 retry ? el("button", { class: "btn", type: "button", text: "Retry", onclick: retry }) : null

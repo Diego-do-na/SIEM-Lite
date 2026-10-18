@@ -11,9 +11,12 @@ import { panel, pageHead, statCard } from "./ui.js";
 import { attackMatrix } from "./matrix.js";
 import { regionMap } from "./regionmap.js";
 
+// "Total" asks the reports for the most days the API gives, so cards that come from it say so
+let allTime = false;
+
 function computedNote(res) {
     if (!res || !res.generatedAt) return "";
-    return "Computed " + new Date(res.generatedAt * 1000).toISOString().slice(11, 16) + " UTC" + (res.cached ? " (cached)" : "") + ". Recomputed when a new incident arrives.";
+    return (allTime ? "All time shows the last " + data.API_MAX_DAYS + " days here, the most the API reports. " : "") + "Computed " + new Date(res.generatedAt * 1000).toISOString().slice(11, 16) + " UTC" + (res.cached ? " (cached)" : "") + ". Recomputed when a new incident arrives.";
 }
 
 function sampleNote(res) {
@@ -77,6 +80,7 @@ export function mount(root, ctx) {
     async function refresh(soft = false) {
         const myRun = ++run;
         const days = ctx.days();
+        allTime = days === 0;
         const stale = () => myRun !== run;
         const opts = { soft };
         if (!soft) stripSkeleton();
@@ -85,7 +89,7 @@ export function mount(root, ctx) {
         await trendCard.load(() => data.trend(), (t) => {
             const summary = data.summarize(t.days, days);
             if (summary.now.total === 0) trendCard.empty("No incidents in this range");
-            else trendCard.show(el("div", {}, [legend(), stackedArea(summary.rows, "Incidents per day by severity, last " + days + " days")]));
+            else trendCard.show(el("div", {}, [legend(), stackedArea(summary.rows, "Incidents per day by severity, last " + summary.rows.length + " days")]));
             trendCard.note(computedNote(t));
         }, opts);
         if (stale()) return;
@@ -100,6 +104,7 @@ export function mount(root, ctx) {
             const counts = {};
             res.data.forEach((r) => { counts[r.technique] = Number(r.incidents); });
             attackCard.show(attackMatrix(counts));
+            attackCard.note(allTime ? "All time shows the last " + data.API_MAX_DAYS + " days here, the most the API reports." : "");
         }, opts);
         if (stale()) return;
         await ipsCard.load(() => data.topIps(days), (res) => {
