@@ -92,7 +92,7 @@ const since = (ms) => {
     return m < 1 ? "just now" : m < 60 ? plural(m, "minute") + " ago" : plural(Math.round(m / 60), "hour") + " ago";
 };
 
-// info: { name, role, demo, signedAt, idleMinutes }, actions: { theme, signOut }
+// info: { name, role, demo, signedAt, idleMinutes }, actions: { signOut }
 export function initAccountMenu(getInfo, actions) {
     const button = $("#user-btn");
     const pop = $("#user-pop");
@@ -113,7 +113,6 @@ export function initAccountMenu(getInfo, actions) {
                 el("div", {}, [el("dt", { text: "Signed in" }), el("dd", { text: since(info.signedAt) })]),
                 el("div", {}, [el("dt", { text: "Inactivity limit" }), el("dd", { text: info.idleMinutes ? info.idleMinutes + " min, with a warning first" : "Off" })])
             ]),
-            item(ICONS.sun, "Switch theme", actions.theme),
             item(ICONS.logout, info.demo ? "End demo session" : "Sign out", actions.signOut)
         );
     }

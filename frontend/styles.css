@@ -152,10 +152,10 @@ a:hover { text-decoration: underline; }
 .pill.demo { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); cursor: help; }
 .toast {
     position: fixed; z-index: 70; right: 24px; bottom: 24px; display: flex; align-items: center; gap: 12px; padding: 11px 16px;
-    border-radius: 10px; background: var(--text); color: var(--page); font-weight: 500; box-shadow: 0 10px 30px rgba(0, 0, 0, .3);
+    border-radius: 10px; border: 1px solid var(--border-strong); background: var(--card); color: var(--text); font-weight: 500; box-shadow: 0 10px 30px rgba(0, 0, 0, .25);
 }
 .toast.show { animation: toast-in .4s cubic-bezier(.2, .8, .2, 1); }
-.toast a { color: inherit; font-weight: 600; text-decoration: underline; }
+.toast a { color: var(--accent); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
 .toast .live-dot, .toast .live-dot::after { background: var(--sev-medium); }
 .user { display: flex; align-items: center; gap: 8px; font-weight: 500; }
 .view { padding: 22px 32px 48px; width: 100%; max-width: 1360px; margin: 0 auto; outline: none; }

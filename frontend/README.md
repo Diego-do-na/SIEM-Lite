@@ -74,7 +74,7 @@ Every IP and IAM user shown in a table is a link to its page; the list of all of
 
 ## Session
 
-The account menu (top right) shows who is signed in, since when and the inactivity limit, and has Switch theme and Sign out (`js/session.js`).
+The account menu (top right) shows who is signed in, since when and the inactivity limit, and has Sign out (`js/session.js`).
 After `idleMinutes` without activity (30 by default; set it in `config.js`, `0` turns it off) a dialog warns for 60 seconds, and
 then the session ends. Only the person's own input counts as activity, not the automatic refresh. When a session ends the login screen
 says why (signed out, expired, inactivity). The reason survives the Cognito logout redirect through a guarded `localStorage` key.
