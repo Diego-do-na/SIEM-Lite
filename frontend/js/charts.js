@@ -44,13 +44,16 @@ export function stackedArea(days, label) {
     const x = (i) => m.l + (n === 1 ? iw / 2 : (i * iw) / (n - 1));
     const y = (v) => m.t + ih - (v / max) * ih;
 
+    // The layers sit in one group so the entrance (a left to right wipe) is a single animation
+    const layers = svg("g", { class: "reveal" });
+    root.appendChild(layers);
     let lower = days.map(() => 0);
     order.forEach((sev) => {
         const upper = days.map((d, i) => lower[i] + d[sev]);
         const forward = upper.map((v, i) => x(i) + "," + y(v));
         const backward = lower.map((v, i) => x(i) + "," + y(v)).reverse();
-        root.appendChild(svg("polygon", { points: forward.concat(backward).join(" "), class: "layer fill-" + sevClass(sev) }));
-        root.appendChild(svg("polyline", { points: forward.join(" "), class: "line stroke-" + sevClass(sev) }));
+        layers.appendChild(svg("polygon", { points: forward.concat(backward).join(" "), class: "layer fill-" + sevClass(sev) }));
+        layers.appendChild(svg("polyline", { points: forward.join(" "), class: "line stroke-" + sevClass(sev) }));
         lower = upper;
     });
 
@@ -92,9 +95,9 @@ export function donut(rows, centerValue, centerLabel, label) {
     rows.forEach((row, i) => {
         const len = Math.max(0, (row.value / total) * c - (rows.length > 1 ? 2 : 0));
         const seg = svg("circle", {
-            cx: size / 2, cy: size / 2, r, class: "seg-ring",
+            cx: size / 2, cy: size / 2, r, class: "seg-ring seg",
             "stroke-dasharray": len + " " + (c - len), "stroke-dashoffset": -offset,
-            transform: "rotate(-90 " + size / 2 + " " + size / 2 + ")"
+            transform: "rotate(-90 " + size / 2 + " " + size / 2 + ")", vars: { "--i": String(i) }
         });
         seg.style.stroke = "var(--cat-" + ((i % 8) + 1) + ")";
         attachTip(seg, row.label + (row.sub ? " " + row.sub : "") + ": " + row.value);
@@ -113,18 +116,73 @@ export function donut(rows, centerValue, centerLabel, label) {
     return el("div", { class: "donut-wrap" }, [root, list]);
 }
 
-// Ranked bars. rows: [{label, who, value}]
+// Ranked bars. rows: [{label, who, value, display?, color?, mono?}]
+// display replaces the number on the right, color sets the bar (a CSS color or variable)
 export function rankedBars(rows) {
     if (!rows.length) return emptyBlock("No data in this range");
-    const max = Math.max(...rows.map((r) => r.value));
+    const max = Math.max(1, ...rows.map((r) => r.value));
     return el("div", { class: "bars" }, rows.map((row, i) =>
         el("div", { class: "bar-row" }, [
             el("div", { class: "top" }, [
-                el("span", {}, [el("span", { class: "mono", text: row.label }), row.who ? el("span", { class: "who", text: row.who }) : null]),
-                el("span", { class: "val", text: fmtNum(row.value) })
+                el("span", {}, [el("span", { class: row.mono === false ? "" : "mono", text: row.label }), row.who ? el("span", { class: "who", text: row.who }) : null]),
+                el("span", { class: "val", text: row.display || fmtNum(row.value) })
             ]),
-            el("div", { class: "bar-track" }, [el("div", { class: "bar-fill", vars: { "--w": Math.max(2, (row.value / max) * 100) + "%", "--o": String(1 - i * 0.12) } })])
+            el("div", { class: "bar-track" }, [el("div", { class: "bar-fill", vars: Object.assign(
+                { "--w": Math.max(2, (row.value / max) * 100) + "%", "--o": String(Math.max(0.4, 1 - i * 0.12)), "--i": String(i) },
+                row.color ? { "--bar": row.color } : {}) })])
         ])));
+}
+
+// Share bars: how much of each group has a given property (for example mitigated incidents).
+// rows: [{label, color, part, whole}]
+export function ratioBars(rows) {
+    if (!rows.some((r) => r.whole > 0)) return emptyBlock("No data in this range");
+    return el("div", { class: "bars" }, rows.map((row, i) => {
+        const ratio = row.whole ? row.part / row.whole : 0;
+        return el("div", { class: "bar-row" }, [
+            el("div", { class: "top" }, [
+                el("span", {}, [el("span", { text: row.label }), el("span", { class: "who", text: row.whole ? fmtNum(row.part) + " of " + fmtNum(row.whole) : "no incidents" })]),
+                el("span", { class: "val", text: row.whole ? Math.round(ratio * 100) + "%" : "–" })
+            ]),
+            el("div", { class: "bar-track" }, [el("div", { class: "bar-fill", vars: { "--w": (row.whole ? Math.max(2, ratio * 100) : 0) + "%", "--bar": row.color, "--i": String(i) } })])
+        ]);
+    }));
+}
+
+// Weekday by hour grid. rows: [{label, cells: [24 counts]}]. Darker means more incidents
+export function heatmap(rows, max, unit) {
+    if (!max) return emptyBlock("No incidents in this range");
+    const hourLabels = Array.from({ length: 24 }, (_, h) => el("span", { class: "h", text: h % 3 === 0 ? String(h).padStart(2, "0") : "" }));
+    const body = rows.flatMap((row, r) => [
+        el("span", { class: "d", text: row.label }),
+        ...row.cells.map((n, h) => {
+            const cell = el("i", {
+                class: "cell" + (n ? "" : " zero"),
+                vars: { "--a": String(n ? 0.18 + (n / max) * 0.82 : 0), "--i": String(r * 2 + Math.floor(h / 4)) }
+            });
+            attachTip(cell, row.label + " " + String(h).padStart(2, "0") + ":00 UTC\n" + fmtNum(n) + " " + (n === 1 ? unit : unit + "s"));
+            return cell;
+        })
+    ]);
+    return el("div", { class: "heat-scroll" }, [
+        el("div", { class: "heat", role: "img", "aria-label": "Incidents by weekday and hour of day, UTC" }, [el("span"), ...hourLabels, ...body]),
+        el("div", { class: "heat-legend" }, [el("span", { text: "Fewer" }), el("i", { class: "ramp" }), el("span", { text: "More" })])
+    ]);
+}
+
+// Technique by severity table with a tinted cell per count. data: {rows: [{technique, counts, total}], max}
+export function severityMatrix(data, nameOf) {
+    if (!data.rows.length) return emptyBlock("No data in this range");
+    const head = el("tr", {}, [el("th", { scope: "col", text: "Technique" }), ...SEVERITIES.map((s) => el("th", { scope: "col", class: "num", text: s.charAt(0) + s.slice(1).toLowerCase() })), el("th", { scope: "col", class: "num", text: "Total" })]);
+    const body = data.rows.map((row, r) => el("tr", {}, [
+        el("td", { class: "tech" }, [el("b", { text: row.technique }), nameOf(row.technique) ? el("small", { text: nameOf(row.technique) }) : null]),
+        ...SEVERITIES.map((s) => {
+            const n = row.counts[s] || 0;
+            return el("td", { class: "num" }, [el("span", { class: "mcell" + (n ? "" : " zero"), text: n ? fmtNum(n) : "·", vars: { "--c": "var(--sev-" + sevClass(s) + ")", "--a": String(n ? 0.14 + (n / data.max) * 0.5 : 0), "--i": String(r) } })]);
+        }),
+        el("td", { class: "num total", text: fmtNum(row.total) })
+    ]));
+    return el("div", { class: "table-wrap" }, [el("table", { class: "matrix" }, [el("thead", {}, [head]), el("tbody", {}, body)])]);
 }
 
 // Score histogram. rows: [{low, high, value}], colored by the detection severity thresholds
@@ -139,7 +197,7 @@ export function histogram(rows, label) {
     rows.forEach((row, i) => {
         const h = (row.value / max) * ih;
         const x = m.l + i * slot + (slot - bw) / 2;
-        const rect = svg("rect", { x, y: m.t + ih - h, width: bw, height: Math.max(h, 1), rx: 3, class: "col fill-" + sevClass(sevOfScore(row.low)) });
+        const rect = svg("rect", { x, y: m.t + ih - h, width: bw, height: Math.max(h, 1), rx: 3, class: "col fill-" + sevClass(sevOfScore(row.low)), vars: { "--i": String(i) } });
         attachTip(rect, "Score " + row.low + " to " + row.high + "\n" + fmtNum(row.value) + " incidents");
         root.appendChild(rect);
         root.appendChild(svg("text", { x: x + bw / 2, y: H - 10, "text-anchor": "middle", text: String(row.low) }));

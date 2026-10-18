@@ -31,6 +31,7 @@ export function svg(tag, attrs = {}, children = []) {
     for (const [key, value] of Object.entries(attrs)) {
         if (value === undefined || value === null) continue;
         if (key === "text") node.textContent = value;
+        else if (key === "vars") Object.entries(value).forEach(([name, v]) => node.style.setProperty(name, v));
         else node.setAttribute(key, value);
     }
     append(node, children);
@@ -54,7 +55,9 @@ export const ICONS = {
     moon: ["M21 13A9 9 0 1 1 11 3a7 7 0 0 0 10 10z"],
     chevronDown: ["M6 9l6 6 6-6"],
     chevronRight: ["M9 6l6 6-6 6"],
-    chevronsLeft: ["M11 17l-5-5 5-5", "M18 17l-5-5 5-5"],
+    chevronLeft: ["M15 6l-6 6 6 6"],
+    panelLeft: ["M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z", "M9 4v16"],
+    download: ["M12 4v11", "M7 11l5 5 5-5", "M5 20h14"],
     close: ["M6 6l12 12", "M18 6L6 18"],
     shieldCheck: ["M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z", "M9 12l2 2 4-4"],
     filter: ["M4 6h16", "M7 12h10", "M10 18h4"],
@@ -135,6 +138,29 @@ export function fmtDuration(seconds) {
 }
 
 export const fmtNum = (n) => Number(n || 0).toLocaleString("en-US");
+
+export const fmtPct = (ratio) => (ratio === null || ratio === undefined ? "–" : Math.round(ratio * 100) + "%");
+
+// ---------- Motion ----------
+
+export const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// Counts a number up (or between two values) so changes are noticed. Skipped when the user asks for less motion
+export function countUp(node, to, { from = 0, ms = 700, format = fmtNum } = {}) {
+    if (reducedMotion() || from === to) {
+        node.textContent = format(to);
+        return;
+    }
+    node.textContent = format(from);
+    const start = performance.now();
+    const step = (now) => {
+        const t = Math.min(1, (now - start) / ms);
+        const eased = 1 - Math.pow(1 - t, 3);
+        node.textContent = format(Math.round(from + (to - from) * eased));
+        if (t < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+}
 
 export const userShort = (arn) => String(arn || "").split("/").pop() || String(arn || "");
 

@@ -28,21 +28,32 @@ export function panel({ title, sub, className = "", minHeight = 200, action }) {
                 retry ? el("button", { class: "btn", type: "button", text: "Retry", onclick: retry }) : null
             ]));
         },
-        // loader() -> data, render(data) -> node. A newer call makes an older, slower one a no-op
-        async load(loader, render) {
+        // loader() -> data, render(data) -> node. A newer call makes an older, slower one a no-op.
+        // soft: keep what is on screen while the new data loads (used by the automatic refresh)
+        async load(loader, render, { soft = false } = {}) {
             const run = (api._run = (api._run || 0) + 1);
-            api.loading();
+            if (!soft) api.loading();
             try {
                 const data = await loader();
                 if (run !== api._run) return;
                 render(data);
             } catch (err) {
                 if (run !== api._run) return;
+                if (soft) return;
                 api.error(err, () => api.load(loader, render));
             }
         }
     };
     return api;
+}
+
+// A small figure with a caption, used in the strip at the top of Analytics
+export function statCard(label, value, sub) {
+    return el("div", { class: "card kpi stat" }, [
+        el("div", { class: "label", text: label }),
+        el("div", { class: "value", text: value }),
+        el("p", { class: "delta", text: sub || "" })
+    ]);
 }
 
 export function pageHead(title, sub, right) {
@@ -79,13 +90,18 @@ export function incidentTable({ onOpen }) {
         tbody.replaceChildren(el("tr", {}, [el("td", { colspan: String(COLUMNS.length) }, [node])]));
     }
 
-    function row(item) {
+    // Rows already shown, so a refresh can highlight only the ones that just arrived
+    const seen = new Set();
+    const keyOf = (item) => item.severity + "/" + item.timestamp + "/" + (item.incidentId || "");
+
+    function row(item, index, fresh, animate) {
         const open = () => onOpen(item.severity, item.timestamp);
         const technique = (item.mitreTechniques || []).map(techName).find(Boolean) || "";
         const timeCell = el("td", { class: "nowrap" }, [el("span", { class: "t-long", text: relTime(item.timestamp) }), el("span", { class: "t-short", text: relTimeShort(item.timestamp) })]);
         attachTip(timeCell, fullDate(item.timestamp));
         return el("tr", {
-            class: "row", tabindex: "0", vars: { "--c": "var(--sev-" + sevClass(item.severity) + ")" },
+            class: "row" + (fresh ? " fresh" : "") + (animate ? " enter" : ""), tabindex: "0",
+            vars: { "--c": "var(--sev-" + sevClass(item.severity) + ")", "--i": String(Math.min(index, 14)) },
             "aria-label": item.severity + " incident, open details", onclick: open,
             onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } }
         }, [
@@ -113,9 +129,17 @@ export function incidentTable({ onOpen }) {
                 retry ? el("button", { class: "btn", type: "button", text: "Retry", onclick: retry }) : null
             ]));
         },
-        setRows(items, append) {
+        resetSeen() { seen.clear(); },
+        // soft: a refresh of rows already on screen. New rows are highlighted instead of animating all of them in
+        setRows(items, append, soft = false) {
+            const known = seen.size > 0;
             if (!append) tbody.replaceChildren();
-            items.forEach((item) => tbody.appendChild(row(item)));
+            items.forEach((item, index) => {
+                const key = keyOf(item);
+                const fresh = soft && known && !seen.has(key);
+                seen.add(key);
+                tbody.appendChild(row(item, index, fresh, !soft));
+            });
         }
     };
 }
