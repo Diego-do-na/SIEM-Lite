@@ -43,8 +43,10 @@ Private S3 bucket + CloudFront with Origin Access Control. The bucket is never p
 only reader. A response-headers policy sets:
 
 - `Content-Security-Policy` (`default-src 'self'`, `connect-src` limited to the API and Cognito domains,
-  `frame-ancestors 'none'`, `object-src 'none'`; `style-src` needs `'unsafe-inline'` because the charts set
-  inline styles)
+  `frame-ancestors 'none'`, `object-src 'none'`; `style-src 'self'` is enough: the page sets styles through the
+  CSSOM (`element.style`), never as `style` attributes in markup, which CSP does not block. Checked by running every
+  page, the technique card, the palette, the session dialog and the expanded cards against
+  `default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:` with zero violations)
 - `Strict-Transport-Security`
 - `X-Content-Type-Options: nosniff`
 - `Referrer-Policy`

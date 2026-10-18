@@ -138,4 +138,4 @@ All of it is off for people who set `prefers-reduced-motion`. Keyframes are in t
 - Sessions end after `idleMinutes` without activity (30 by default). The authorizer on the API remains the real access control.
 - Every value that comes from the API is written with `textContent`; there is no `innerHTML` anywhere.
 - No inline scripts, no inline event handlers and no external scripts or fonts (the fonts are in `fonts/`), so the page works under
-  `script-src 'self'; font-src 'self'` when it is served from CloudFront with security headers.
+  `script-src 'self'; style-src 'self'; font-src 'self'` (no `'unsafe-inline'` anywhere; checked with zero violations across every page and dialog) when it is served from CloudFront with security headers.
