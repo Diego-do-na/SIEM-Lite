@@ -20,7 +20,7 @@ same paths as the real API, so loading, filters, pagination and the detail panel
 
 | URL | Shows |
 |---|---|
-| `?mock=1` | Realistic data for the last 90 days |
+| `?mock=1` | Realistic data for the last 90 days. A new incident arrives about every 20 seconds, so the live refresh can be seen |
 | `?mock=empty` | No incidents (empty states) |
 | `?mock=error` | The MITRE report fails (per-card error and Retry) |
 
@@ -30,9 +30,24 @@ same paths as the real API, so loading, filters, pagination and the detail panel
 |---|---|---|
 | `#/overview` | `/analytics/severity-trend`, `/analytics/mitre-techniques`, `/incidents`, `/health` | live |
 | `#/incidents` | `/incidents` with filters and keyset pagination, `/incidents/{severity}/{timestamp}` | live |
-| `#/analytics` | the four `/analytics/*` reports | live |
-| `#/reports` | needs a reports endpoint (1.1) | layout only |
+| `#/analytics` | the four `/analytics/*` reports plus statistics computed from `/incidents` (see below) | live |
+| `#/reports`, `#/reports/<id>` | needs a reports endpoint (1.1). The list and each report are separate pages | layout only |
 | `#/settings` | needs richer `/health` and `POST /actions` (1.1) | layout only |
+
+## Live refresh
+
+Every `pollSeconds` (10 by default, set it in `config.js`) the page calls `/stats`, which is cheap, and compares
+`lastIncidentAt`. Only when it changes do the views reload, in place and without skeletons: the totals count up,
+new rows are highlighted and a toast says what arrived. The top bar shows the state ("Live · updated 8s ago",
+or "Offline" if the call fails), the refresh icon turns while a check runs, and a hidden tab does not poll.
+On the Incidents page, if you already loaded more than the first page the list is not replaced; a link offers to reload it.
+
+## Statistics on the Analytics page
+
+The four Athena reports come from the API. The rest (activity by weekday and hour, MITRE tactics, mitigation rate,
+top IAM users, duration, techniques by severity and the key figures) is computed in the browser by `js/stats.js` from
+up to 600 recent incidents of the selected range (6 pages of 100, memoized like everything else). When there are more,
+the card says the figures are an estimate. Moving this to Athena is a 1.1 option if the numbers need to be exact.
 
 The 90-day trend is fetched once and sliced for 7, 30 and 90 days, and everything is memoized by the
 API's `lastIncidentAt`, so switching tabs or ranges does not call the API again until a new incident arrives.
@@ -45,7 +60,8 @@ styles.css            design tokens first (light and dark), then components
 js/main.js            sign-in, routing, theme, polling
 js/auth.js            Cognito PKCE
 js/api.js, data.js    fetch wrapper and the data layer (endpoints, memo)
-js/charts.js          SVG charts (area, donut, bars, histogram)
+js/charts.js          charts (area, donut, bars, histogram, heatmap, technique matrix)
+js/stats.js           statistics computed from incidents (pure functions, no DOM)
 js/drawer.js          incident detail panel
 js/mock.js            demo data, loaded only with ?mock
 js/views/             overview, incidents, analytics, reports, settings, shared UI
@@ -55,6 +71,11 @@ js/views/             overview, incidents, analytics, reports, settings, shared 
 
 Colors, type and radii are CSS variables at the top of `styles.css` (the palette comes from the Figma
 design). Severity colors are used only for severity; technique charts use the separate `--cat-*` ramp.
+
+## Motion
+
+Entrances, chart drawing, count-ups and the highlight of new rows are CSS animations and a small `countUp`.
+All of it is off for people who set `prefers-reduced-motion`. Keyframes are in the Motion block of `styles.css`.
 
 ## Security notes
 

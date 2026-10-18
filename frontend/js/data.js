@@ -51,6 +51,27 @@ export const mitre = (days) => memoized("mitre" + days, () => api("/analytics/mi
 export const topIps = (days) => memoized("ips" + days, () => api("/analytics/top-ips?days=" + days));
 export const scores = (days) => memoized("scores" + days, () => api("/analytics/score-distribution?days=" + days));
 export const latest = (limit) => memoized("latest" + limit, () => api("/incidents?limit=" + limit));
+// The statistics that the four reports do not cover (activity by hour, tactics, users, mitigation, duration)
+// are computed in the browser from the most recent incidents of the range: up to 6 pages of 100, fetched
+// one after another and memoized by data version like everything else
+const SAMPLE_PAGE = 100;
+const SAMPLE_PAGES = 6;
+
+export const sample = (days) => memoized("sample" + days, async () => {
+    const from = Math.floor(Date.now() / 1000) - days * 86400;
+    let items = [];
+    let cursor = null;
+    for (let page = 0; page < SAMPLE_PAGES; page++) {
+        const params = new URLSearchParams({ limit: String(SAMPLE_PAGE), from: String(from) });
+        if (cursor) params.set("cursor", cursor);
+        const res = await incidents(params);
+        items = items.concat(res.items);
+        cursor = res.nextCursor;
+        if (!cursor) break;
+    }
+    return { items, truncated: Boolean(cursor), days };
+});
+
 export const health = () => api("/health", { auth: false });
 export const stats = () => api("/stats");
 

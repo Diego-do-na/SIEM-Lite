@@ -23,11 +23,12 @@
 
     <div id="shell" class="shell" hidden>
         <aside class="sidebar" id="sidebar">
-            <div class="brand"><span class="brand-mark" id="brand-mark"></span><span class="brand-name">SIEM Lite</span></div>
+            <div class="brand">
+                <span class="brand-mark" id="brand-mark"></span>
+                <span class="brand-name">SIEM Lite</span>
+                <button id="collapse" class="icon-btn ghost side-toggle" type="button" aria-label="Collapse sidebar" aria-controls="sidebar" aria-expanded="true" title="Collapse sidebar"></button>
+            </div>
             <nav id="nav" class="nav" aria-label="Main"></nav>
-            <button id="collapse" class="nav-item collapse" type="button" aria-label="Collapse sidebar">
-                <span id="collapse-icon"></span><span class="nav-label">Collapse</span>
-            </button>
         </aside>
 
         <div class="main-col">
@@ -39,7 +40,8 @@
                     <button type="button" data-days="90" aria-pressed="false">90 days</button>
                 </div>
                 <div class="topbar-right">
-                    <span class="updated" id="updated"></span>
+                    <span class="pill demo" id="demo" title="Generated data. A new incident arrives about every 20 seconds so the live refresh can be seen." hidden>Demo data</span>
+                    <span class="live" id="live"><i class="live-dot"></i><span class="updated" id="updated"></span></span>
                     <button id="refresh" class="icon-btn" type="button" aria-label="Refresh data" title="Refresh"></button>
                     <button id="theme" class="icon-btn" type="button" aria-label="Toggle light and dark theme" title="Theme"></button>
                     <div class="user"><span class="avatar" id="avatar"></span><span id="username"></span><span class="role" id="role" hidden></span></div>
@@ -54,6 +56,7 @@
     <div id="scrim" class="scrim" hidden></div>
     <aside id="drawer" class="drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title" hidden></aside>
     <div id="tip" class="tip" role="tooltip" hidden></div>
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
     <!-- No inline scripts or styles: the page works under a strict Content-Security-Policy -->
     <script src="config.js"></script>

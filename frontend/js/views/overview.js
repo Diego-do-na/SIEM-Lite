@@ -1,7 +1,7 @@
 // Overview: the few things worth seeing first. KPIs, the trend, top techniques, latest incidents.
 
 import * as data from "../data.js";
-import { el, SEVERITIES, sevClass, fmtNum, shortDate, techName } from "../dom.js";
+import { el, SEVERITIES, sevClass, shortDate, techName, countUp } from "../dom.js";
 import { stackedArea, donut, legend } from "../charts.js";
 import { panel, pageHead, incidentTable } from "./ui.js";
 
@@ -40,23 +40,38 @@ export function mount(root, ctx) {
         kpiRow.replaceChildren(...Array.from({ length: 5 }, () => el("div", { class: "card kpi" }, [el("div", { class: "skel", vars: { "--h": "74px" } })])));
     }
 
-    function renderKpis(summary, days) {
+    // Values already shown: a new incident makes the figure count up from the old one instead of jumping
+    const shownKpi = new Map();
+
+    function renderKpis(summary, days, soft) {
         const cards = [["Total incidents", "total", null], ...SEVERITIES.map((s) => [s.charAt(0) + s.slice(1).toLowerCase(), s, s])];
-        kpiRow.replaceChildren(...cards.map(([label, key, sev]) => el("div", { class: "card kpi", vars: sev ? { "--c": "var(--sev-" + sevClass(sev) + ")" } : {} }, [
-            el("div", { class: "label" }, [sev ? el("i", { class: "sev-dot", vars: { "--c": "var(--sev-" + sevClass(sev) + ")" } }) : null, label]),
-            el("div", { class: "value", text: fmtNum(summary.now[key]) }),
-            delta(summary.now[key], summary.before ? summary.before[key] : null, days)
-        ])));
+        kpiRow.classList.toggle("soft", soft);
+        kpiRow.replaceChildren(...cards.map(([label, key, sev], i) => {
+            const value = el("div", { class: "value" });
+            countUp(value, summary.now[key], { from: soft ? (shownKpi.get(key) || 0) : 0 });
+            shownKpi.set(key, summary.now[key]);
+            return el("div", { class: "card kpi", vars: Object.assign({ "--i": String(i) }, sev ? { "--c": "var(--sev-" + sevClass(sev) + ")" } : {}) }, [
+                el("div", { class: "label" }, [sev ? el("i", { class: "sev-dot", vars: { "--c": "var(--sev-" + sevClass(sev) + ")" } }) : null, label]),
+                value,
+                delta(summary.now[key], summary.before ? summary.before[key] : null, days)
+            ]);
+        }));
     }
 
     let run = 0;
-    async function refresh() {
+    // soft: called by the automatic refresh when a new incident arrives. Nothing goes back to a skeleton,
+    // the figures count up and new rows are highlighted
+    async function refresh(soft = false) {
         const myRun = ++run;
         const days = ctx.days();
-        kpiSkeleton();
-        trendCard.loading();
-        mitreCard.loading();
-        table.loading(6);
+        if (!soft) {
+            shownKpi.clear();
+            kpiSkeleton();
+            trendCard.loading();
+            mitreCard.loading();
+            table.resetSeen();
+            table.loading(6);
+        }
 
         data.health().then((h) => {
             const ok = h && h.status === "ok";
@@ -73,35 +88,37 @@ export function mount(root, ctx) {
             const t = await data.trend();
             if (myRun !== run) return;
             summary = data.summarize(t.days, days);
-            renderKpis(summary, days);
+            renderKpis(summary, days, soft);
             sub.textContent = "CloudTrail detections · " + shortDate(new Date(summary.rows[0].day + "T00:00:00Z")) + " – " + shortDate(new Date(summary.rows[summary.rows.length - 1].day + "T00:00:00Z"));
             if (summary.now.total === 0) trendCard.empty("No incidents in this range");
             else trendCard.show(el("div", {}, [legend(), stackedArea(summary.rows, "Incidents per day by severity, last " + days + " days")]));
             trendCard.note(t.generatedAt ? "Computed " + new Date(t.generatedAt * 1000).toISOString().slice(11, 16) + " UTC. Recomputed when a new incident arrives." : "");
         } catch (err) {
             if (myRun !== run) return;
-            kpiRow.replaceChildren(el("div", { class: "card panel span-all" }, [el("div", { class: "error-box" }, [
-                el("p", { text: "Could not load the totals. " + err.message }),
-                el("button", { class: "btn", type: "button", text: "Retry", onclick: refresh })
-            ])]));
-            trendCard.error(err, refresh);
+            if (!soft) {
+                kpiRow.replaceChildren(el("div", { class: "card panel span-all" }, [el("div", { class: "error-box" }, [
+                    el("p", { text: "Could not load the totals. " + err.message }),
+                    el("button", { class: "btn", type: "button", text: "Retry", onclick: () => refresh() })
+                ])]));
+                trendCard.error(err, () => refresh());
+            }
         }
 
         mitreCard.load(() => data.mitre(days), (res) => {
             const rows = res.data.slice(0, 6).map((r) => ({ label: r.technique, sub: techName(r.technique), value: Number(r.incidents) }));
             const total = summary ? summary.now.total : rows.reduce((n, r) => n + r.value, 0);
             mitreCard.show(rows.length ? donut(rows, total, "incidents", "Top MITRE techniques") : el("div", { class: "empty", text: "No data in this range" }));
-        });
+        }, { soft });
 
         try {
             const res = await data.latest(8);
             if (myRun !== run) return;
             if (!res.items.length) table.empty("No incidents yet");
-            else table.setRows(res.items, false);
+            else table.setRows(res.items, false, soft);
             latestFoot.textContent = res.items.length ? "Showing the latest " + res.items.length + " incidents" : "";
         } catch (err) {
             if (myRun !== run) return;
-            table.error(err, refresh);
+            if (!soft) table.error(err, () => refresh());
         }
     }
 

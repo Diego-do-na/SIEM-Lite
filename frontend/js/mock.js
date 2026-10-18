@@ -22,11 +22,17 @@ const TECHNIQUES = {
     "T1078.004": { actions: ["ConsoleLogin", "GetCallerIdentity"], response: null },
     "T1530": { actions: ["GetObject", "ListBuckets"], response: null }
 };
-const TECH_WEIGHTS = ["T1110", "T1110", "T1078.004", "T1078.004", "T1530", "T1562.007", "T1562.008", "T1485"];
+const LOW_TECHNIQUES = ["T1110", "T1110", "T1110", "T1078.004", "T1078.004", "T1530"];
+const HIGH_TECHNIQUES = ["T1562.008", "T1562.007", "T1485", "T1110", "T1078.004", "T1530"];
 
 let mode = "1";
 let incidents = [];
 let built = false;
+let gen = null;
+let liveTimer = null;
+
+// Demo only: every ~20 seconds a new incident "happens", so the automatic refresh of the dashboard can be seen
+const LIVE_EVERY_MS = 20000;
 
 function rng(seed) {
     let s = seed;
@@ -51,8 +57,10 @@ function build() {
         const [lo, hi] = BANDS[severity];
         const score = Math.round(lo + rand() * (hi - lo));
         const person = pick(PEOPLE);
-        const main = forced || pick(TECH_WEIGHTS);
-        const techniques = rand() < 0.3 ? [main, pick(TECH_WEIGHTS)].filter((t, i, a) => a.indexOf(t) === i).sort() : [main];
+        // Tampering with logs or keys only shows up in the higher severities, as the detection rules score it
+        const pool = severity === "CRITICAL" || severity === "HIGH" ? HIGH_TECHNIQUES : LOW_TECHNIQUES;
+        const main = forced || pick(pool);
+        const techniques = rand() < 0.3 ? [main, pick(pool)].filter((t, i, a) => a.indexOf(t) === i).sort() : [main];
         const dur = 40 + Math.floor(rand() * 600);
         const critical = techniques.some((t) => TECHNIQUES[t].response);
         const response = critical && (severity === "CRITICAL" || severity === "HIGH");
@@ -81,7 +89,17 @@ function build() {
         }
     }
     list.sort((a, b) => b.timestamp - a.timestamp || SEV_ORDER[a.severity] - SEV_ORDER[b.severity]);
+    gen = { rand, make };
     return list;
+}
+
+function addLive() {
+    if (!gen) return;
+    const r = gen.rand();
+    const severity = r < 0.12 ? "CRITICAL" : r < 0.34 ? "HIGH" : r < 0.7 ? "MEDIUM" : "LOW";
+    const now = Math.floor(Date.now() / 1000);
+    const ts = incidents.length ? Math.max(now, incidents[0].timestamp + 1) : now;
+    incidents.unshift(gen.make(ts, severity));
 }
 
 export function configure(m) {
@@ -90,6 +108,7 @@ export function configure(m) {
         incidents = mode === "empty" ? [] : build();
         built = true;
     }
+    if (mode === "1" && !liveTimer) liveTimer = setInterval(addLive, LIVE_EVERY_MS);
 }
 
 const summarize = (i) => ({
