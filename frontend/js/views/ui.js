@@ -1,7 +1,7 @@
 // Shared building blocks for the views: cards with loading, error and empty states,
 // and the incident table used by Overview and Incidents.
 
-import { el, icon, ICONS, sevBadge, sevClass, relTime, relTimeShort, fullDate, userShort, techName, attachTip, fmtNum } from "../dom.js";
+import { el, icon, ICONS, sevBadge, sevClass, relTime, relTimeShort, fullDate, clock, userShort, techName, attachTip, fmtNum } from "../dom.js";
 import { emptyBlock } from "../charts.js";
 
 // A card whose body can be loading, failed (with Retry) or filled, independent of the others:
@@ -10,8 +10,10 @@ export function panel({ title, sub, className = "", minHeight = 200, action }) {
     const subNode = sub ? el("p", { class: "sub", text: sub }) : null;
     const body = el("div", { class: "panel-body" });
     const foot = el("p", { class: "panel-foot" });
+    // When this block was last drawn, like the timestamp on every tile of a SIEM console
+    const stamp = el("span", { class: "stamp", hidden: true });
     const root = el("section", { class: "card panel " + className }, [
-        el("header", { class: "panel-head" }, [el("div", {}, [el("h2", { text: title }), subNode]), action || null]),
+        el("header", { class: "panel-head" }, [el("div", {}, [el("h2", { text: title }), subNode]), action || stamp]),
         body,
         foot
     ]);
@@ -37,6 +39,8 @@ export function panel({ title, sub, className = "", minHeight = 200, action }) {
                 const data = await loader();
                 if (run !== api._run) return;
                 render(data);
+                stamp.textContent = clock(Date.now() / 1000);
+                stamp.hidden = false;
             } catch (err) {
                 if (run !== api._run) return;
                 if (soft) return;

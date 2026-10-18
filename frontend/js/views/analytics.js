@@ -8,6 +8,8 @@ import * as stats from "../stats.js";
 import { el, techName, fmtNum, fmtPct, fmtDuration, sevClass } from "../dom.js";
 import { stackedArea, donut, rankedBars, ratioBars, histogram, heatmap, severityMatrix, legend } from "../charts.js";
 import { panel, pageHead, statCard } from "./ui.js";
+import { attackMatrix } from "./matrix.js";
+import { regionMap } from "./regionmap.js";
 
 function computedNote(res) {
     if (!res || !res.generatedAt) return "";
@@ -27,6 +29,8 @@ export function mount(root, ctx) {
     const strip = el("section", { class: "grid-stats", "aria-label": "Key figures" });
     const trendCard = panel({ title: "Incidents over time", sub: "Daily detections by severity · UTC", minHeight: 250 });
     const mitreCard = panel({ title: "Top MITRE ATT&CK techniques", sub: "Incidents per technique", minHeight: 250 });
+    const attackCard = panel({ title: "MITRE ATT&CK coverage", sub: "What the detection rules cover, by tactic · select a technique to read about it", minHeight: 200 });
+    const mapCard = panel({ title: "Activity by region", sub: "Where in AWS the activity happened · incidents per region", minHeight: 260, action: el("span", { class: "pill", title: "Region per incident is part of the 1.1 API. Until then it shows in demo data only.", text: "Preview" }) });
     const heatCard = panel({ title: "When incidents happen", sub: "Weekday and hour of day · UTC", minHeight: 200 });
     const tacticCard = panel({ title: "MITRE tactics", sub: "What the attacker was trying to achieve", minHeight: 220 });
     const mitigationCard = panel({ title: "Automated response", sub: "Share of incidents mitigated, by severity", minHeight: 220 });
@@ -40,6 +44,8 @@ export function mount(root, ctx) {
         pageHead("Analytics", "Reports computed in Athena plus statistics from the incidents themselves"),
         strip,
         el("div", { class: "grid-2" }, [trendCard.root, mitreCard.root]),
+        el("div", { class: "grid-1" }, [attackCard.root]),
+        el("div", { class: "grid-1" }, [mapCard.root]),
         el("div", { class: "grid-1" }, [heatCard.root]),
         el("div", { class: "grid-2" }, [tacticCard.root, mitigationCard.root]),
         el("div", { class: "grid-2" }, [ipsCard.root, usersCard.root]),
@@ -90,6 +96,12 @@ export function mount(root, ctx) {
             mitreCard.note(computedNote(res));
         }, opts);
         if (stale()) return;
+        await attackCard.load(() => data.mitre(days), (res) => {
+            const counts = {};
+            res.data.forEach((r) => { counts[r.technique] = Number(r.incidents); });
+            attackCard.show(attackMatrix(counts));
+        }, opts);
+        if (stale()) return;
         await ipsCard.load(() => data.topIps(days), (res) => {
             const rows = res.data.map((r) => ({ label: r.ip, who: "max score " + fmtNum(r.maxScore), value: Number(r.incidents) }));
             ipsCard.show(rankedBars(rows));
@@ -124,6 +136,9 @@ export function mount(root, ctx) {
         });
 
         await Promise.all([
+            from(mapCard, (res) => {
+                mapCard.show(regionMap(res.items));
+            }),
             from(heatCard, (res) => {
                 const a = stats.activity(res.items);
                 heatCard.show(heatmap(a.rows, a.max, "incident"));

@@ -36,11 +36,6 @@
         <div class="main-col">
             <header class="topbar">
                 <div class="crumb">SIEM Lite / <strong id="crumb"></strong></div>
-                <div class="seg" id="range" role="group" aria-label="Time range">
-                    <button type="button" data-days="7" aria-pressed="false">7 days</button>
-                    <button type="button" data-days="30" aria-pressed="true">30 days</button>
-                    <button type="button" data-days="90" aria-pressed="false">90 days</button>
-                </div>
                 <div class="topbar-right">
                     <span class="pill demo" id="demo" title="Generated data. A new incident arrives about every 20 seconds so the live refresh can be seen." hidden>Demo data</span>
                     <span class="live" id="live"><i class="live-dot"></i><span class="updated" id="updated"></span></span>
@@ -50,6 +45,17 @@
                     <button id="logout" class="btn" type="button">Sign out</button>
                 </div>
             </header>
+            <div id="params" class="params" role="group" aria-label="Report parameters" hidden>
+                <div class="seg" id="range" role="group" aria-label="Time range">
+                    <button type="button" data-days="7" aria-pressed="false">7 days</button>
+                    <button type="button" data-days="30" aria-pressed="true">30 days</button>
+                    <button type="button" data-days="90" aria-pressed="false">90 days</button>
+                </div>
+                <span class="param"><small>Window</small><b id="p-window">Last 30 days · UTC</b></span>
+                <span class="param"><small>Last update</small><b id="p-updated">--:--:--</b></span>
+                <span class="param"><small>Auto-refresh</small><b id="p-poll">every 10 s</b></span>
+                <span class="param"><small>Source</small><b>CloudTrail · Athena</b></span>
+            </div>
             <div id="banner" class="banner" role="status" hidden></div>
             <main id="view" class="view" tabindex="-1"></main>
         </div>
