@@ -6,6 +6,7 @@ import { stackedArea, donut, legend } from "../charts.js";
 import { panel, pageHead, incidentTable } from "./ui.js";
 
 function delta(now, before, days) {
+    if (days === 0) return el("p", { class: "delta", text: "Since the first detection" });
     if (before === null || before === undefined) return el("p", { class: "delta", text: "Previous period not available for this range" });
     if (before === 0) return el("p", { class: "delta", text: now === 0 ? "No change vs previous " + days + "d" : "New vs previous " + days + "d" });
     const pct = ((now - before) / before) * 100;
@@ -88,11 +89,20 @@ export function mount(root, ctx) {
             const t = await data.trend();
             if (myRun !== run) return;
             summary = data.summarize(t.days, days);
+            if (days === 0) {
+                // The totals of all time are exact: /stats counts every incident, while the daily chart only reaches back 90 days
+                const all = (await data.stats()).windows.all || {};
+                if (myRun !== run) return;
+                summary.now = { total: Number(all.total || 0) };
+                SEVERITIES.forEach((s) => { summary.now[s] = Number(all[s] || 0); });
+                summary.before = null;
+            }
             renderKpis(summary, days, soft);
-            sub.textContent = "CloudTrail detections · " + shortDate(new Date(summary.rows[0].day + "T00:00:00Z")) + " – " + shortDate(new Date(summary.rows[summary.rows.length - 1].day + "T00:00:00Z"));
+            sub.textContent = "CloudTrail detections · " + (days === 0 ? "all time" : shortDate(new Date(summary.rows[0].day + "T00:00:00Z")) + " – " + shortDate(new Date(summary.rows[summary.rows.length - 1].day + "T00:00:00Z")));
             if (summary.now.total === 0) trendCard.empty("No incidents in this range");
-            else trendCard.show(el("div", {}, [legend(), stackedArea(summary.rows, "Incidents per day by severity, last " + days + " days")]));
-            trendCard.note(t.generatedAt ? "Computed " + new Date(t.generatedAt * 1000).toISOString().slice(11, 16) + " UTC. Recomputed when a new incident arrives." : "");
+            else trendCard.show(el("div", {}, [legend(), stackedArea(summary.rows, "Incidents per day by severity, last " + summary.rows.length + " days")]));
+            trendCard.note((t.generatedAt ? "Computed " + new Date(t.generatedAt * 1000).toISOString().slice(11, 16) + " UTC. Recomputed when a new incident arrives." : "")
+                + (days === 0 ? " The totals above are for all time; this chart shows the last " + data.API_MAX_DAYS + " days, the most the API reports." : ""));
         } catch (err) {
             if (myRun !== run) return;
             if (!soft) {

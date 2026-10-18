@@ -21,7 +21,7 @@ function listPage(root) {
         el("span", { class: "pill", text: "Preview" }),
         el("span", { class: "go" }, [icon(ICONS.chevronRight)])
     ]));
-    const list = panel({ title: "Weekly reports", sub: "Executive summaries written by Amazon Bedrock" });
+    const list = panel({ title: "Weekly reports", sub: "Executive summaries written by Amazon Bedrock", expandable: false });
     list.show(el("div", { class: "report-list" }, rows));
     list.note("Each report opens on its own page. They will be listed here once the API can serve them.");
     root.append(pageHead("Reports", "Weekly summaries and, later, downloadable PDFs"), previewNote(), list.root);
@@ -32,7 +32,7 @@ function statBox() {
 }
 
 function section(title, sub, body) {
-    const card = panel({ title, sub });
+    const card = panel({ title, sub, expandable: false });
     card.show(body);
     return card.root;
 }
