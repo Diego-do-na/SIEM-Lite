@@ -114,3 +114,11 @@ export function techniqueSeverity(items, limit = 8) {
     const rows = [...map.values()].sort((a, b) => b.total - a.total).slice(0, limit);
     return { rows, max: Math.max(0, ...rows.flatMap((r) => SEVERITIES.map((s) => r.counts[s]))) };
 }
+
+// Incidents per technique and how many of them an automatic response handled, for every technique in the dictionary
+export function mitigationByTechnique(items, ids) {
+    return ids.map((technique) => {
+        const rows = items.filter((i) => (i.mitreTechniques || []).includes(technique));
+        return { technique, total: rows.length, mitigated: rows.filter((i) => i.responseTaken).length };
+    });
+}

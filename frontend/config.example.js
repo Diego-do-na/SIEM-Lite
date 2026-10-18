@@ -4,5 +4,7 @@ window.SIEM_CONFIG = {
     clientId: "xxxxxxxxxxxxxxxxxxxxxxxxxx",
     loginUrl: "https://siem-lite-dev-123456789012.auth.us-east-2.amazoncognito.com",
     // How often the dashboard asks the API whether a new incident arrived, in seconds
-    pollSeconds: 10
+    pollSeconds: 10,
+    // Minutes without activity before the session ends (a warning shows 60 seconds before). 0 turns it off
+    idleMinutes: 30
 };

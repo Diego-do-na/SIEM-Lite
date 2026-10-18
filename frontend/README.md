@@ -33,6 +33,8 @@ The demo incidents follow the real rules (actions, weights, techniques and autom
 | `#/incidents` | `/incidents` with filters and keyset pagination (also `#/incidents?technique=T1485`) | live |
 | `#/incidents/<severity>/<timestamp>` | `/incidents/{severity}/{timestamp}`: one incident as a page, with the risk-score ring, score breakdown, SOAR response and timeline | live |
 | `#/analytics` | the four `/analytics/*` reports plus statistics computed from `/incidents` (see below), the ATT&CK coverage matrix, and a region map | live; the region map is a preview (the list endpoint has no `awsRegion` until 1.1) |
+| `#/entity/ip/<ip>`, `#/entity/user/<name>` | `/incidents` filtered to one address or IAM user (exact match checked in the browser): score over time, techniques, who or what it is tied to, regions, incidents. Reached from any IP or user in a table or chart | live; regions are a preview (see above) |
+| `#/response` | what the response Lambda does on its own (from `js/mitre.js`), mitigation rate by severity and by technique (computed from `/incidents`), what is only alerted, and two previews: ideas for more responses and the recovery-tag ("Protected resources") design | live for the figures; the last two cards are previews |
 | `#/reports`, `#/reports/<id>` | needs a reports endpoint (1.1). The list and each report are separate pages | layout only |
 | `#/settings` | needs richer `/health` and `POST /actions` (1.1) | layout only |
 
@@ -53,6 +55,30 @@ drawing itself again. It closes only with the X button or Esc, never by clicking
 The range selector has a **Total** option. Totals by severity are exact (`/stats`, all time). The four Athena reports accept
 at most 90 days today, so those cards show the last 90 days and say so (`API_MAX_DAYS` in `js/data.js`; raise it if the
 API's `ALLOWED_DAYS` grows). The statistics computed in the browser use the latest 600 incidents.
+
+## Expanded cards explain themselves
+
+Expanding a card also shows, under the chart, **how to read it**, **what stands out** and **the exact numbers** as a table
+(`js/explain.js`). The "what stands out" sentences are plain rules over the data on screen (a maximum, a share, the second
+half of the range against the first); there is no model behind them, so each one can be checked against the table beside it.
+Each card sets its own with `card.explain(...)`; the box stays hidden until the card is expanded. IPs, users and techniques in
+those tables are links.
+
+## Search, entities and keyboard
+
+`Ctrl+K` (`Cmd+K` on a Mac), `/`, or the Search button opens a palette (`js/search.js`) to jump to a page, an IP address,
+an IAM user or a technique, or to send what you typed to the filters of the Incidents page. Addresses and users come from the
+latest 600 incidents, the same sample the Analytics cards use, so it needs no endpoint. Arrow keys move, Enter opens, Esc closes.
+Every IP and IAM user shown in a table is a link to its page; the page of an entity is `js/views/entity.js`.
+
+## Session
+
+The account menu (top right) shows who is signed in, since when and the inactivity limit, and has Sign out (`js/session.js`).
+After `idleMinutes` without activity (30 by default; set it in `config.js`, `0` turns it off) a dialog warns for 60 seconds, and
+then the session ends. Only the person's own input counts as activity, not the automatic refresh. When a session ends the login screen
+says why (signed out, expired, inactivity). The reason survives the Cognito logout redirect through a guarded `localStorage` key.
+In the demo, Sign out returns to the login screen and "Start the demo again" restarts it; the inactivity limit is off unless the
+address has `?idle=<minutes>`.
 
 ## Live refresh
 
@@ -75,7 +101,7 @@ API's `lastIncidentAt`, so switching tabs or ranges does not call the API again 
 ## Structure
 
 ```
-index.html            shell (sidebar, top bar, parameters bar, technique card), no inline scripts or styles
+index.html            shell (sidebar, top bar, parameters bar, technique card, palette, session dialog), no inline scripts or styles
 styles.css            design tokens first (light and dark), then components
 js/main.js            sign-in, routing, theme, polling
 js/auth.js            Cognito PKCE
@@ -85,10 +111,15 @@ js/stats.js           statistics computed from incidents (pure functions, no DOM
 js/mitre.js           ATT&CK dictionary, action weights, SOAR answers
 js/mitrecard.js       the technique card
 js/focus.js           focus mode for chart cards
+js/explain.js         "how to read it / what stands out / the numbers" for every expanded card
+js/search.js          Ctrl+K search palette
+js/session.js         account menu, inactivity sign-out, login-screen messages
+js/links.js           links to the page of an IP or user, parsing of entity routes
+js/techchip.js        technique id button that opens the ATT&CK card
 js/worldmap.js        static world outline and AWS region positions (generated once from Natural Earth)
 fonts/                IBM Plex Sans and JetBrains Mono (self-hosted, SIL OFL licenses included)
 js/mock.js            demo data, loaded only with ?mock
-js/views/             overview, incidents, incident (page), analytics, matrix, regionmap, reports, settings, shared UI
+js/views/             overview, incidents, incident (page), entity (page), analytics, matrix, regionmap, response, reports, settings, shared UI
 ```
 
 ## Restyling
@@ -103,7 +134,8 @@ All of it is off for people who set `prefers-reduced-motion`. Keyframes are in t
 
 ## Security notes
 
-- Tokens live in `sessionStorage`, not `localStorage`; only the theme and sidebar state use `localStorage`.
+- Tokens live in `sessionStorage`, not `localStorage`; only the theme, the sidebar state and the reason the last session ended use `localStorage`.
+- Sessions end after `idleMinutes` without activity (30 by default). The authorizer on the API remains the real access control.
 - Every value that comes from the API is written with `textContent`; there is no `innerHTML` anywhere.
 - No inline scripts, no inline event handlers and no external scripts or fonts (the fonts are in `fonts/`), so the page works under
   `script-src 'self'; font-src 'self'` when it is served from CloudFront with security headers.

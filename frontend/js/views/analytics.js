@@ -10,6 +10,8 @@ import { stackedArea, donut, rankedBars, ratioBars, histogram, heatmap, severity
 import { panel, pageHead, statCard } from "./ui.js";
 import { attackMatrix } from "./matrix.js";
 import { regionMap } from "./regionmap.js";
+import * as ex from "../explain.js";
+import { REGION_POINTS } from "../worldmap.js";
 
 // "Total" asks the reports for the most days the API gives, so cards that come from it say so
 let allTime = false;
@@ -89,7 +91,10 @@ export function mount(root, ctx) {
         await trendCard.load(() => data.trend(), (t) => {
             const summary = data.summarize(t.days, days);
             if (summary.now.total === 0) trendCard.empty("No incidents in this range");
-            else trendCard.show(el("div", {}, [legend(), stackedArea(summary.rows, "Incidents per day by severity, last " + summary.rows.length + " days")]));
+            else {
+                trendCard.show(el("div", {}, [legend(), stackedArea(summary.rows, "Incidents per day by severity, last " + summary.rows.length + " days")]));
+                trendCard.explain(ex.trendExplain(summary.rows));
+            }
             trendCard.note(computedNote(t));
         }, opts);
         if (stale()) return;
@@ -97,6 +102,7 @@ export function mount(root, ctx) {
             const rows = res.data.slice(0, 8).map((r) => ({ label: r.technique, sub: techName(r.technique), value: Number(r.incidents) }));
             const total = rows.reduce((n, r) => n + r.value, 0);
             mitreCard.show(rows.length ? donut(rows, total, "technique hits", "Top MITRE techniques") : el("div", { class: "empty", text: "No data in this range" }));
+            mitreCard.explain(ex.techniqueExplain(rows));
             mitreCard.note(computedNote(res));
         }, opts);
         if (stale()) return;
@@ -104,12 +110,14 @@ export function mount(root, ctx) {
             const counts = {};
             res.data.forEach((r) => { counts[r.technique] = Number(r.incidents); });
             attackCard.show(attackMatrix(counts));
+            attackCard.explain(ex.coverageExplain(counts));
             attackCard.note(allTime ? "All time shows the last " + data.API_MAX_DAYS + " days here, the most the API reports." : "");
         }, opts);
         if (stale()) return;
         await ipsCard.load(() => data.topIps(days), (res) => {
             const rows = res.data.map((r) => ({ label: r.ip, who: "max score " + fmtNum(r.maxScore), value: Number(r.incidents) }));
             ipsCard.show(rankedBars(rows));
+            ipsCard.explain(ex.ipsExplain(res.data.map((r) => ({ ip: r.ip, incidents: Number(r.incidents), maxScore: Number(r.maxScore) }))));
             ipsCard.note(computedNote(res));
         }, opts);
         if (stale()) return;
@@ -119,6 +127,7 @@ export function mount(root, ctx) {
                 return { low, high: low + 99, value: Number(r.incidents) };
             }).sort((a, b) => a.low - b.low);
             scoreCard.show(histogram(rows, "Score distribution"));
+            scoreCard.explain(ex.scoreExplain(rows));
             scoreCard.note("Higher scores mean greater potential risk. Thresholds: Low from 1, Medium 200, High 400, Critical 600. " + computedNote(res));
         }, opts);
         if (stale()) return;
@@ -143,35 +152,45 @@ export function mount(root, ctx) {
         await Promise.all([
             from(mapCard, (res) => {
                 mapCard.show(regionMap(res.items));
+                mapCard.explain(ex.regionExplain(res.items, (r) => (REGION_POINTS[r] ? REGION_POINTS[r][2] : r)));
             }),
             from(heatCard, (res) => {
                 const a = stats.activity(res.items);
                 heatCard.show(heatmap(a.rows, a.max, "incident"));
+                heatCard.explain(ex.heatExplain(a));
             }),
             from(tacticCard, (res) => {
                 const rows = stats.byTactic(res.items).map((r) => ({ label: r.label, value: r.value, mono: false }));
                 tacticCard.show(rankedBars(rows));
+                tacticCard.explain(ex.tacticExplain(rows, res.items.length));
             }),
             from(mitigationCard, (res) => {
-                mitigationCard.show(ratioBars(stats.mitigationBySeverity(res.items).map((r) => ({
+                const by = stats.mitigationBySeverity(res.items);
+                mitigationCard.show(ratioBars(by.map((r) => ({
                     label: sevLabel(r.sev), color: "var(--sev-" + sevClass(r.sev) + ")", part: r.mitigated, whole: r.total
                 }))));
+                mitigationCard.explain(ex.mitigationExplain(by));
             }),
             from(usersCard, (res) => {
                 const rows = stats.topUsers(res.items).map((r) => ({
                     label: r.user, who: "max score " + fmtNum(r.maxScore) + " · " + r.ips + (r.ips === 1 ? " IP" : " IPs"), value: r.count
                 }));
                 usersCard.show(rankedBars(rows));
+                usersCard.explain(ex.usersExplain(stats.topUsers(res.items), res.items.length));
             }),
             from(durationCard, (res) => {
-                const rows = stats.durationBySeverity(res.items).filter((r) => r.count).map((r) => ({
+                const all = stats.durationBySeverity(res.items);
+                durationCard.explain(ex.durationExplain(all));
+                const rows = all.filter((r) => r.count).map((r) => ({
                     label: sevLabel(r.sev), mono: false, who: "median " + fmtDuration(r.median), value: r.avg, display: fmtDuration(r.avg),
                     color: "var(--sev-" + sevClass(r.sev) + ")"
                 }));
                 durationCard.show(rankedBars(rows));
             }),
             from(matrixCard, (res) => {
-                matrixCard.show(severityMatrix(stats.techniqueSeverity(res.items), techName));
+                const grid = stats.techniqueSeverity(res.items);
+                matrixCard.show(severityMatrix(grid, techName));
+                matrixCard.explain(ex.severityMatrixExplain(grid));
             })
         ]);
     }

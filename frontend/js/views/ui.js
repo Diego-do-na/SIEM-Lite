@@ -4,6 +4,11 @@
 import { el, icon, ICONS, sevBadge, sevClass, relTime, relTimeShort, fullDate, clock, userShort, techName, attachTip, fmtNum } from "../dom.js";
 import { emptyBlock } from "../charts.js";
 import { openFocus, closeFocus } from "../focus.js";
+import { explainView } from "../explain.js";
+import { techChip } from "../techchip.js";
+import { entityLink } from "../links.js";
+
+export { techChip };
 
 // A card whose body can be loading, failed (with Retry) or filled, independent of the others:
 // one failing report must not hide the rest of the page
@@ -15,10 +20,13 @@ export function panel({ title, sub, className = "", minHeight = 200, action, exp
     const stamp = el("span", { class: "stamp", hidden: true });
     const expandBtn = expandable ? el("button", { class: "icon-btn ghost small expand-btn", type: "button", "aria-label": "Expand " + title, title: "Expand" }, [icon(ICONS.expand)]) : null;
     const closeBtn = expandable ? el("button", { class: "icon-btn close-btn", type: "button", "aria-label": "Close expanded view", title: "Close (Esc)", onclick: () => closeFocus() }, [icon(ICONS.close)]) : null;
+    // What the card explains about itself; only visible once it is expanded (see .explain in styles.css)
+    const explainBox = el("div", { class: "explain" });
     const root = el("section", { class: "card panel " + className + (expandable ? " expandable" : "") }, [
         el("header", { class: "panel-head" }, [el("div", {}, [el("h2", { text: title }), subNode]), el("div", { class: "panel-tools" }, [action || null, stamp, expandBtn, closeBtn])]),
         body,
-        foot
+        foot,
+        explainBox
     ]);
     if (expandable) {
         const expand = (opener) => { if (root.classList.contains("ready") && !root.classList.contains("expanded")) openFocus(root, opener); };
@@ -28,13 +36,16 @@ export function panel({ title, sub, className = "", minHeight = 200, action, exp
     }
     const api = {
         root, body, foot,
-        loading() { root.classList.remove("ready"); body.replaceChildren(el("div", { class: "skel", vars: { "--h": minHeight + "px" } })); },
+        loading() { root.classList.remove("ready"); explainBox.replaceChildren(); body.replaceChildren(el("div", { class: "skel", vars: { "--h": minHeight + "px" } })); },
         show(node) { root.classList.toggle("ready", !(node.classList && node.classList.contains("empty"))); body.replaceChildren(node); },
-        empty(text) { root.classList.remove("ready"); body.replaceChildren(emptyBlock(text)); },
+        empty(text) { root.classList.remove("ready"); explainBox.replaceChildren(); body.replaceChildren(emptyBlock(text)); },
+        // spec comes from js/explain.js. Shown below the chart when the card is expanded
+        explain(spec) { explainBox.replaceChildren(...explainView(spec)); },
         setSub(text) { if (subNode) subNode.textContent = text; },
         note(text) { foot.textContent = text || ""; },
         error(err, retry) {
             root.classList.remove("ready");
+            explainBox.replaceChildren();
             body.replaceChildren(el("div", { class: "error-box" }, [
                 el("p", { text: "Could not load this section. " + (err && err.message ? err.message : "") }),
                 retry ? el("button", { class: "btn", type: "button", text: "Retry", onclick: retry }) : null
@@ -84,18 +95,6 @@ function responseCell(item) {
     ]);
 }
 
-// A technique id as a button: it opens the ATT&CK card. Inside a table row it must not also open the incident
-export function techChip(id, { showName = false } = {}) {
-    const name = techName(id);
-    const button = el("button", {
-        class: "chip tech-btn", type: "button", "aria-haspopup": "dialog",
-        title: (name ? name + ". " : "") + "Open the technique card",
-        onclick: (e) => { e.stopPropagation(); import("../mitrecard.js").then((m) => m.openTechnique(id, button)); },
-        onkeydown: (e) => e.stopPropagation()
-    }, [id, showName && name ? el("span", { class: "chip-name", text: name }) : null]);
-    return button;
-}
-
 function techniqueChips(list) {
     const items = list || [];
     const shown = items.slice(0, 2).map((t) => techChip(t));
@@ -133,8 +132,8 @@ export function incidentTable({ onOpen }) {
         }, [
             el("td", {}, [sevBadge(item.severity)]),
             timeCell,
-            el("td", { class: "who-cell" }, [el("b", { text: userShort(item.userIdentity) }), technique ? el("small", { text: technique }) : null]),
-            el("td", { class: "hide-md mono", text: item.sourceIPAddress || "" }),
+            el("td", { class: "who-cell" }, [el("b", {}, [entityLink("user", userShort(item.userIdentity), { mono: false })]), technique ? el("small", { text: technique }) : null]),
+            el("td", { class: "hide-md" }, [item.sourceIPAddress ? entityLink("ip", item.sourceIPAddress) : null]),
             el("td", {}, [el("span", { class: "score", text: fmtNum(item.globalScore) })]),
             el("td", { class: "hide-sm" }, techniqueChips(item.mitreTechniques)),
             el("td", { class: "hide-md" }, [responseCell(item)]),

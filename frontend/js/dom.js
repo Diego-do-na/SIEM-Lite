@@ -65,7 +65,11 @@ export const ICONS = {
     shieldCheck: ["M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z", "M9 12l2 2 4-4"],
     filter: ["M4 6h16", "M7 12h10", "M10 18h4"],
     sparkle: ["M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"],
-    minus: ["M8 12h8", "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z"]
+    minus: ["M8 12h8", "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z"],
+    search: ["M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14z", "M21 21l-5-5"],
+    logout: ["M9 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h4", "M16 8l4 4-4 4", "M20 12H9"],
+    clock: ["M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z", "M12 7v5l3 2"],
+    play: ["M7 4l13 8-13 8z"]
 };
 
 export function brandMark() {
