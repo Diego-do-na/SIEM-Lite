@@ -1,6 +1,8 @@
 // Small DOM helpers. Everything that comes from the API is written with textContent,
 // never as HTML: fields like userIdentity are controlled by whoever generated the event.
 
+import { techniqueName } from "./mitre.js";
+
 const SVG_NS = "http://www.w3.org/2000/svg";
 
 export const $ = (selector, root = document) => root.querySelector(selector);
@@ -74,17 +76,7 @@ export function brandMark() {
 
 // ---------- Formatting ----------
 
-const MITRE_NAMES = {
-    "T1562.008": "Disable or Modify Cloud Logs",
-    "T1562.007": "Disable or Modify Cloud Firewall",
-    "T1485": "Data Destruction",
-    "T1110": "Brute Force",
-    "T1078.004": "Cloud Accounts",
-    "T1098.001": "Additional Cloud Credentials",
-    "T1530": "Data from Cloud Storage"
-};
-
-export const techName = (id) => MITRE_NAMES[id] || "";
+export const techName = techniqueName;
 
 export const SEVERITIES = ["CRITICAL", "HIGH", "MEDIUM", "LOW"];
 

@@ -70,9 +70,21 @@ function responseCell(item) {
     ]);
 }
 
+// A technique id as a button: it opens the ATT&CK card. Inside a table row it must not also open the incident
+export function techChip(id, { showName = false } = {}) {
+    const name = techName(id);
+    const button = el("button", {
+        class: "chip tech-btn", type: "button", "aria-haspopup": "dialog",
+        title: (name ? name + ". " : "") + "Open the technique card",
+        onclick: (e) => { e.stopPropagation(); import("../mitrecard.js").then((m) => m.openTechnique(id, button)); },
+        onkeydown: (e) => e.stopPropagation()
+    }, [id, showName && name ? el("span", { class: "chip-name", text: name }) : null]);
+    return button;
+}
+
 function techniqueChips(list) {
     const items = list || [];
-    const shown = items.slice(0, 2).map((t) => el("span", { class: "chip", text: t }));
+    const shown = items.slice(0, 2).map((t) => techChip(t));
     if (items.length > 2) shown.push(el("span", { class: "chip", text: "+" + (items.length - 2) }));
     return shown;
 }
