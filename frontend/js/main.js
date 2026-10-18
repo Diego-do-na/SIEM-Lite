@@ -145,11 +145,12 @@ async function spinning(work) {
 function toast(added) {
     const box = $("#toast");
     const onIncidents = app.route && app.route.id === "incidents";
-    box.replaceChildren(
+    // The DOM writes a null argument as the text "null", so the optional link is filtered out first
+    box.replaceChildren(...[
         el("i", { class: "live-dot" }),
         el("span", { text: added > 0 ? plural(added, "new incident") + " detected" : "New activity detected" }),
         onIncidents ? null : el("a", { href: "#/incidents", text: "View", onclick: () => { box.hidden = true; } })
-    );
+    ].filter(Boolean));
     box.hidden = false;
     box.classList.remove("show");
     void box.offsetWidth; // restart the entrance animation
