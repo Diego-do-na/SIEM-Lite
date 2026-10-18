@@ -58,6 +58,8 @@
 }
 
 * { box-sizing: border-box; }
+/* The browser indents <dd> by default; every list of facts here lines its values up with their labels */
+dd { margin-inline-start: 0; }
 html { -webkit-text-size-adjust: 100%; }
 body { margin: 0; background: var(--page); color: var(--text); font: 14px/1.5 var(--font); -webkit-font-smoothing: antialiased; }
 h1, h2, h3, p { margin: 0; }
@@ -700,7 +702,7 @@ a:hover { text-decoration: underline; }
 .ent-actions { margin-top: 4px; display: flex; gap: 8px; flex-wrap: wrap; }
 .ent-facts { position: relative; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 24px; }
 .ent-facts dt { color: var(--text-3); font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; }
-.ent-facts dd { margin-top: 2px; font-size: 15px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.ent-facts dd { margin: 2px 0 0; font-size: 15px; font-weight: 500; font-variant-numeric: tabular-nums; }
 .ent-techs { display: grid; gap: 14px; }
 /* Cards that sit next to a taller one start at the top instead of floating in the middle */
 .panel.top .panel-body { justify-content: flex-start; }
