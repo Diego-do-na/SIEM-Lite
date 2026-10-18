@@ -117,7 +117,14 @@ Global skips live in `.checkov.yaml` with reasons; one-off exceptions are inline
 Routes are split into `public` and `protected` resources so a route accidentally left without
 authorization is still flagged by `CKV_AWS_309` instead of being hidden by a blanket skip.
 
-## 14. Alternatives left for later
+## 14. The dashboard explains its charts with rules, not a model
+
+- **Problem.** A chart that only gets bigger when expanded teaches nothing; an analyst also needs to know how to read it and what in it matters.
+- **Decision.** Every expanded card shows how to read it, a few findings and the exact numbers (`frontend/js/explain.js`). The findings are plain rules over the figures on screen (maximum, share, first half against second half), not text from a model.
+- **Why.** Each sentence can be checked against the table beside it, costs nothing per view, works offline with demo data and cannot invent a fact. Bedrock already writes the one narrative that needs judgment, the per-incident triage.
+- **Trade-off.** The rules are written by hand per chart, so a new chart needs its own. Acceptable at this size.
+
+## 15. Alternatives left for later
 
 MFA, WAF, CMKs, a compaction job, atomic counters, admin actions (`POST /actions`, admin group only). See
 [roadmap.md](roadmap.md).

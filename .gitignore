@@ -17,3 +17,6 @@ frontend/config.js
 
 # One-off backups of the old manual stack
 oregon-backup/
+
+# third-party screenshots used only as design reference (not ours to publish)
+design-reference/

@@ -137,7 +137,7 @@ A read-only HTTP API exposes the incident store to a static dashboard.
 - **Endpoints:** `GET /incidents` (filters, keyset pagination across severities), `GET /incidents/{id}`, `GET /stats` (counts and trend), `GET /analytics/{report}` (fixed Athena reports: top IPs, MITRE techniques, severity trend, score distribution; `days` limited to 7/30/90), `GET /health`. Full reference in [docs/api.md](docs/api.md).
 - **Two separate defenses:** token validation (who may call) and input validation (what they may ask: allow-listed parameters, bounded sizes, no free-form SQL).
 - **Abuse and cost control:** stage throttling (10 req/s, burst 20), CORS limited to `dashboard_origins`, and a **cache keyed by data version** (the timestamp of the last incident), so repeated dashboard loads never re-run Athena unless there is new data. Timed-out Athena queries are explicitly stopped.
-- **Dashboard:** vanilla JS single-page app (no build step, no dependencies) in `frontend/`; tokens in `sessionStorage`, all untrusted text rendered with `textContent`. Static hosting on private S3 + CloudFront (OAC, security headers) is the next infrastructure step; today it runs locally against a deployed API ([deployment](docs/deployment.md)). The UI is being redesigned.
+- **Dashboard:** vanilla JS single-page app (no build step, no dependencies) in `frontend/`; tokens in `sessionStorage`, all untrusted text rendered with `textContent`. Static hosting on private S3 + CloudFront (OAC, security headers) is the next infrastructure step; today it runs locally against a deployed API ([deployment](docs/deployment.md)), and `?mock=1` shows it with generated data and no AWS. It has an overview, an incident page with the risk-score ring and score breakdown, an Entities page (every source IP and IAM user, who is tied to whom, with a region map) and a page for each one, an ATT&CK coverage matrix with a card per technique, a response page, a Ctrl+K search, and expandable charts that explain themselves (how to read them, what stands out, the exact numbers). Sessions end after 30 minutes without activity, with a warning first. See [frontend/README.md](frontend/README.md).
 
 ## Rule 3: behavioral baseline (optional module)
 
@@ -277,7 +277,7 @@ docs/            architecture, api, security, deployment, testing, decisions, ro
 
 ## Roadmap
 
-**Closing 1.0:** host the dashboard on S3 + CloudFront, a redesigned UI, and a full validation of the Terraform deployment with real CloudTrail and Config.
+**Closing 1.0:** host the dashboard on S3 + CloudFront and a full validation of the Terraform deployment with real CloudTrail and Config. The new UI is built and runs on demo data; it still needs to be checked against the real API.
 
 **1.1 (hardening and depth):** Cognito MFA, WAF, customer-managed KMS keys, dead-letter queues and S3 access logs, Parquet with periodic compaction and a backfill script, an admin-only `POST /actions` (acknowledge/close, manual SOAR re-run) with audit trail, Athena-backed search, and the detection improvements below.
 
@@ -288,7 +288,7 @@ docs/            architecture, api, security, deployment, testing, decisions, ro
 - **Event-sequence correlation.** Detect known attack chains (e.g. a security-group change followed by broadening an ingress rule).
 - **Recalibrated severity thresholds** against real traffic, and **MFA-aware scoring**.
 - **Rule 3 baseline improvements.** Group IPv4/IPv6/relay addresses per user, support multimodal schedules, separate weekday/weekend patterns, handle time zones.
-- **SOAR v2.** Opt-in resource tagging so automated response can safely cover actions currently excluded for being ambiguous.
+- **SOAR v2 and recovery tags.** Opt-in resource tagging so automated response can safely cover actions currently excluded for being ambiguous. A resource tagged for recovery would have its configuration saved by SIEM Lite and rebuilt if it is deleted or altered. The dashboard already has the Response page and a preview of the protected-resources view; the backend (tag convention, snapshots, restore) is not built.
 - **ML-based anomaly detection**, evaluated only once real account activity exists to train and validate against.
 - **PDF weekly reports** from a LaTeX template compiled in a container-image Lambda.
 

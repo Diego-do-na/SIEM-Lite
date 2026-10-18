@@ -43,11 +43,18 @@ Private S3 bucket + CloudFront with Origin Access Control. The bucket is never p
 only reader. A response-headers policy sets:
 
 - `Content-Security-Policy` (`default-src 'self'`, `connect-src` limited to the API and Cognito domains,
-  `frame-ancestors 'none'`, `object-src 'none'`; `style-src` needs `'unsafe-inline'` because the charts set
-  inline styles)
+  `frame-ancestors 'none'`, `object-src 'none'`; `style-src 'self'` is enough: the page sets styles through the
+  CSSOM (`element.style`), never as `style` attributes in markup, which CSP does not block. Checked by running every
+  page, the technique card, the palette, the session dialog and the expanded cards against
+  `default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:` with zero violations)
 - `Strict-Transport-Security`
 - `X-Content-Type-Options: nosniff`
 - `Referrer-Policy`
+
+Session handling in the page: tokens live in `sessionStorage`; after `idleMinutes` without activity (30 by default,
+`config.js`) a warning dialog appears for 60 seconds and then the session ends and Cognito's logout page is
+called. Only the person's own input counts as activity, not the automatic refresh. This limits the time a screen
+with security data stays open on an unattended computer; the API's authorizer remains the real access control.
 
 A public URL does not by itself make a static page vulnerable: it contains no secrets and no data (the data
 sits behind the API). The real risks are XSS and token handling, covered above. AWS Shield Standard
