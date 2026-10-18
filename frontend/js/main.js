@@ -311,7 +311,7 @@ function bind() {
             const who = isMock() ? { name: "demo", groups: ["admin"] } : auth.claims();
             return { name: who.name, role: who.groups.includes("admin") ? "admin" : who.groups.includes("viewer") ? "viewer" : "", demo: isMock(), signedAt: app.signedAt || Date.now(), idleMinutes: idleMinutes() };
         },
-        { theme: () => $("#theme").click(), signOut: () => signOut("signed-out") }
+        { signOut: () => signOut("signed-out") }
     );
     window.addEventListener("hashchange", () => { if (app.started) showRoute(false); });
 }
