@@ -3,7 +3,7 @@
 // until the API reports a new incident, which matches how the API caches on its side.
 
 import { api } from "./api.js";
-import { SEVERITIES, dayKey } from "./dom.js";
+import { SEVERITIES, dayKey, userShort } from "./dom.js";
 
 export const version = { current: null };
 
@@ -75,6 +75,25 @@ export const sample = (days) => memoized("sample" + days, async () => {
         if (!cursor) break;
     }
     return { items, truncated: Boolean(cursor), days };
+});
+
+// Everything one address or one IAM user did: the API filters by prefix (ip) or by substring (user), so the exact
+// match is checked here. Pages are followed up to a limit so a very busy entity does not hang the page
+const ENTITY_PAGES = 8;
+export const entity = (kind, value) => memoized("entity:" + kind + ":" + value, async () => {
+    const items = [];
+    let cursor = null;
+    let pages = 0;
+    do {
+        const params = new URLSearchParams({ limit: "100" });
+        params.set(kind === "ip" ? "ip" : "user", value);
+        if (cursor) params.set("cursor", cursor);
+        const res = await incidents(params);
+        res.items.forEach((i) => { if (kind === "ip" ? i.sourceIPAddress === value : userShort(i.userIdentity) === value) items.push(i); });
+        cursor = res.nextCursor;
+        pages++;
+    } while (cursor && pages < ENTITY_PAGES);
+    return { items, truncated: Boolean(cursor) };
 });
 
 export const health = () => api("/health", { auth: false });

@@ -204,3 +204,51 @@ export function histogram(rows, label) {
     });
     return root;
 }
+
+// Risk score of every incident of one entity over time: a dot per incident in the color of its severity,
+// on top of the bands of the detection thresholds. Selecting a dot opens the incident.
+export function scoreTimeline(items, label, onOpen) {
+    if (!items.length) return emptyBlock("No incidents");
+    const W = 640, H = 250, m = { t: 14, r: 16, b: 30, l: 42 };
+    const iw = W - m.l - m.r, ih = H - m.t - m.b;
+    const list = items.slice().sort((a, b) => a.timestamp - b.timestamp);
+    const t0 = Number(list[0].timestamp);
+    const t1 = Number(list[list.length - 1].timestamp);
+    const span = Math.max(1, t1 - t0);
+    const top = Math.max(700, Math.ceil(Math.max(...list.map((i) => Number(i.globalScore) || 0)) / 100) * 100);
+    const x = (t) => m.l + (t1 === t0 ? iw / 2 : ((t - t0) / span) * iw);
+    const y = (v) => m.t + ih - (v / top) * ih;
+    const root = svg("svg", { class: "chart tl", viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": label });
+
+    [["low", 0, 200], ["medium", 200, 400], ["high", 400, 600], ["critical", 600, top]].forEach(([sev, from, to]) => {
+        root.appendChild(svg("rect", { x: m.l, y: y(to), width: iw, height: y(from) - y(to), class: "tl-band fill-" + sev }));
+    });
+    [0, 200, 400, 600].forEach((v) => {
+        root.appendChild(svg("line", { x1: m.l, x2: W - m.r, y1: y(v), y2: y(v), class: "gridline" }));
+        root.appendChild(svg("text", { x: m.l - 8, y: y(v) + 4, "text-anchor": "end", text: String(v) }));
+    });
+    [["Medium", 200], ["High", 400], ["Critical", 600]].forEach(([name, v]) => {
+        root.appendChild(svg("text", { x: W - m.r - 4, y: y(v) - 5, "text-anchor": "end", class: "tl-label", text: name + " from " + v }));
+    });
+
+    // A faint line joins the dots in time order, so a rising or falling pattern shows
+    if (list.length > 1) root.appendChild(svg("polyline", { class: "tl-line", points: list.map((i) => x(Number(i.timestamp)) + "," + y(Number(i.globalScore) || 0)).join(" ") }));
+
+    const stamp = (t) => (t1 - t0 < 2 * 86400 ? shortDate(new Date(t * 1000)) + " " + new Date(t * 1000).toISOString().slice(11, 16) : shortDate(new Date(t * 1000)));
+    const ends = list.length === 1 ? [[t0, "middle"]] : [[t0, "start"], [t1, "end"]];
+    ends.forEach(([t, anchor]) => root.appendChild(svg("text", { x: x(t), y: H - 8, "text-anchor": anchor, text: stamp(t) })));
+
+    list.forEach((item, index) => {
+        const dot = svg("circle", {
+            cx: x(Number(item.timestamp)), cy: y(Number(item.globalScore) || 0), r: list.length > 80 ? 3.6 : list.length > 25 ? 4.6 : 5.5, class: "tl-dot fill-" + sevClass(item.severity),
+            tabindex: onOpen ? "0" : null, role: onOpen ? "link" : null, "aria-label": item.severity + " incident, score " + item.globalScore + ", open details", vars: { "--i": String(Math.min(index, 30)) }
+        });
+        attachTip(dot, () => item.severity.charAt(0) + item.severity.slice(1).toLowerCase() + " · score " + fmtNum(item.globalScore) + "\n" + new Date(Number(item.timestamp) * 1000).toISOString().replace("T", " ").slice(0, 16) + " UTC");
+        if (onOpen) {
+            dot.addEventListener("click", (e) => { e.stopPropagation(); onOpen(item.severity, item.timestamp); });
+            dot.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); onOpen(item.severity, item.timestamp); } });
+        }
+        root.appendChild(dot);
+    });
+    return root;
+}

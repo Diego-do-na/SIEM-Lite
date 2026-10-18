@@ -49,6 +49,11 @@ only reader. A response-headers policy sets:
 - `X-Content-Type-Options: nosniff`
 - `Referrer-Policy`
 
+Session handling in the page: tokens live in `sessionStorage`; after `idleMinutes` without activity (30 by default,
+`config.js`) a warning dialog appears for 60 seconds and then the session ends and Cognito's logout page is
+called. Only the person's own input counts as activity, not the automatic refresh. This limits the time a screen
+with security data stays open on an unattended computer; the API's authorizer remains the real access control.
+
 A public URL does not by itself make a static page vulnerable: it contains no secrets and no data (the data
 sits behind the API). The real risks are XSS and token handling, covered above. AWS Shield Standard
 (included) absorbs volumetric DDoS at the CloudFront edge; WAF rate rules are deferred to 1.1.

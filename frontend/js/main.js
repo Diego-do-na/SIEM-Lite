@@ -4,12 +4,18 @@ import * as auth from "./auth.js";
 import { enableMock, isMock, setSignedOutHandler } from "./api.js";
 import * as data from "./data.js";
 import { closeFocus } from "./focus.js";
+import { parseEntity } from "./links.js";
+import { initSearch, openSearch, shortcutLabel } from "./search.js";
+import { startIdle, stopIdle, idleMinutes, initAccountMenu, signOutNote } from "./session.js";
 import { $, el, icon, ICONS, brandMark, clock, plural, reducedMotion } from "./dom.js";
 
 const ROUTES = [
     { id: "overview", label: "Overview", icon: ICONS.overview, range: true, load: () => import("./views/overview.js") },
     { id: "incidents", label: "Incidents", icon: ICONS.incidents, range: false, load: () => import("./views/incidents.js"), detail: () => import("./views/incident.js") },
     { id: "analytics", label: "Analytics", icon: ICONS.analytics, range: true, load: () => import("./views/analytics.js") },
+    // Reached from links on IPs and users (#/entity/ip/<ip>, #/entity/user/<name>), so it has no entry in the menu
+    { id: "entity", label: "Entity", icon: ICONS.incidents, range: false, nav: false, load: () => import("./views/entity.js") },
+    { id: "response", label: "Response", icon: ICONS.shieldCheck, range: true, load: () => import("./views/response.js") },
     { id: "reports", label: "Reports", icon: ICONS.reports, range: false, soon: true, load: () => import("./views/reports.js") },
     { id: "settings", label: "Settings", icon: ICONS.settings, range: false, soon: true, load: () => import("./views/settings.js") }
 ];
@@ -78,8 +84,8 @@ function routeFromHash() {
 }
 
 function renderNav(active) {
-    $("#nav").replaceChildren(...ROUTES.map((r) => el("a", {
-        class: "nav-item", href: "#/" + r.id, title: r.label, "aria-current": r.id === active.id ? "page" : null
+    $("#nav").replaceChildren(...ROUTES.filter((r) => r.nav !== false).map((r) => el("a", {
+        class: "nav-item", href: "#/" + r.id, title: r.label, "aria-current": r.id === (active.id === "entity" ? "incidents" : active.id) ? "page" : null
     }, [icon(r.icon), el("span", { class: "nav-label", text: r.label }), r.soon ? el("span", { class: "nav-tag", text: "Soon" }) : null])));
 }
 
@@ -100,7 +106,8 @@ async function showRoute(firstLoad) {
     app.route = route;
     renderNav(route);
     const asDetail = Boolean(param && route.detail);
-    $("#crumb").textContent = route.label + (asDetail ? " / Incident" : "");
+    const entity = route.id === "entity" ? parseEntity(param) : null;
+    $("#crumb").textContent = route.label + (asDetail ? " / Incident" : entity ? " / " + entity.value : "");
     $("#params").hidden = !route.range;
     document.title = route.label + " · SIEM Lite";
     const view = $("#view");
@@ -202,11 +209,37 @@ function stopTimers() {
     clearInterval(app.clockTimer);
 }
 
-function showLogin() {
+// reason: why the session ended ("expired", "idle", "signed-out"), shown on the login screen
+function showLogin(reason) {
     stopTimers();
+    stopIdle();
+    if (app.menu) app.menu.close();
     app.started = false;
+    closeFocus(true);
     $("#shell").hidden = true;
     $("#login").hidden = false;
+    const note = $("#login-note");
+    note.textContent = signOutNote(reason);
+    note.hidden = !note.textContent;
+    $("#login-btn").textContent = isMock() ? "Start the demo again" : "Sign in";
+    $("#login-lede").textContent = isMock() ? "This was a demo session with generated data." : "Sign in to see your security incidents.";
+}
+
+// Real sessions end at Cognito (which also clears its own cookie); the demo just returns to the login screen
+function signOut(reason) {
+    if (isMock()) showLogin(reason);
+    else auth.logout(reason);
+}
+
+// Minutes without activity before signing out. 30 by default; 0 turns it off.
+// In the demo it is off unless the address has ?idle=<minutes>, which is also how it is tested
+function idleLimit() {
+    if (isMock()) {
+        const v = Number(new URLSearchParams(window.location.search).get("idle"));
+        return Number.isFinite(v) && v > 0 ? v : 0;
+    }
+    const v = window.SIEM_CONFIG && window.SIEM_CONFIG.idleMinutes;
+    return Number.isFinite(v) && v >= 0 ? v : 30;
 }
 
 async function start() {
@@ -220,8 +253,9 @@ async function start() {
     const role = who.groups.includes("admin") ? "admin" : who.groups.includes("viewer") ? "viewer" : "";
     $("#role").textContent = role;
     $("#role").hidden = !role;
-    $("#logout").hidden = isMock();
     $("#demo").hidden = !isMock();
+    app.signedAt = Date.now();
+    startIdle(idleLimit(), () => signOut("idle"));
 
     // The version has to be known before the first view asks for data
     $("#p-poll").textContent = "every " + pollSeconds() + " s";
@@ -262,8 +296,22 @@ function bind() {
     });
     // A hidden tab does not poll; coming back catches up at once
     document.addEventListener("visibilitychange", () => { if (!document.hidden && app.started) poll(); });
-    $("#login-btn").addEventListener("click", auth.login);
-    $("#logout").addEventListener("click", auth.logout);
+    $("#login-btn").addEventListener("click", () => { if (isMock()) start(); else auth.login(); });
+    initSearch({
+        pages: ROUTES.filter((r) => r.nav !== false).map((r) => ({ label: r.label, hash: "#/" + r.id, icon: r.icon })),
+        actions: [
+            { label: "Refresh data", icon: ICONS.refresh, run: () => $("#refresh").click() },
+            { label: "Switch theme", icon: ICONS.sun, run: () => $("#theme").click() },
+            { get label() { return isMock() ? "End demo session" : "Sign out"; }, icon: ICONS.logout, run: () => signOut("signed-out") }
+        ]
+    });
+    app.menu = initAccountMenu(
+        () => {
+            const who = isMock() ? { name: "demo", groups: ["admin"] } : auth.claims();
+            return { name: who.name, role: who.groups.includes("admin") ? "admin" : who.groups.includes("viewer") ? "viewer" : "", demo: isMock(), signedAt: app.signedAt || Date.now(), idleMinutes: idleMinutes() };
+        },
+        { search: openSearch, shortcut: shortcutLabel(), theme: () => $("#theme").click(), signOut: () => signOut("signed-out") }
+    );
     window.addEventListener("hashchange", () => { if (app.started) showRoute(false); });
 }
 
@@ -278,6 +326,7 @@ async function main() {
         start();
         return;
     }
+    const reason = auth.takeSignOutReason();
     if (!auth.configured()) {
         showLogin();
         $("#login-btn").disabled = true;
@@ -290,7 +339,7 @@ async function main() {
         showBanner(err.message);
     }
     if (await auth.getToken()) start();
-    else showLogin();
+    else showLogin(reason);
 }
 
 main();

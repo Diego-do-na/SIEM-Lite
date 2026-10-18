@@ -17,7 +17,8 @@
         <div class="login-card">
             <span class="brand-mark" id="login-mark"></span>
             <h1>SIEM Lite</h1>
-            <p>Sign in to see your security incidents.</p>
+            <p id="login-note" class="login-note" role="status" hidden></p>
+            <p id="login-lede">Sign in to see your security incidents.</p>
             <p id="login-banner" class="banner" role="status" hidden></p>
             <button id="login-btn" class="btn btn-primary" type="button">Sign in</button>
         </div>
@@ -39,10 +40,13 @@
                 <div class="topbar-right">
                     <span class="pill demo" id="demo" title="Generated data. A new incident arrives about every 20 seconds so the live refresh can be seen." hidden>Demo data</span>
                     <span class="live" id="live"><i class="live-dot"></i><span class="updated" id="updated"></span></span>
+                    <button id="search-btn" class="search-btn" type="button" aria-label="Search" aria-keyshortcuts="Control+K Meta+K" title="Search"></button>
                     <button id="refresh" class="icon-btn" type="button" aria-label="Refresh data" title="Refresh"></button>
                     <button id="theme" class="icon-btn" type="button" aria-label="Toggle light and dark theme" title="Theme"></button>
-                    <div class="user"><span class="avatar" id="avatar"></span><span id="username"></span><span class="role" id="role" hidden></span></div>
-                    <button id="logout" class="btn" type="button">Sign out</button>
+                    <div class="usermenu">
+                        <button id="user-btn" class="user user-btn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="user-pop" aria-label="Account menu"><span class="avatar" id="avatar"></span><span id="username"></span><span class="role" id="role" hidden></span></button>
+                        <div id="user-pop" class="user-pop" role="menu" aria-label="Account" hidden></div>
+                    </div>
                 </div>
             </header>
             <div id="params" class="params" role="group" aria-label="Report parameters" hidden>
@@ -64,6 +68,8 @@
 
     <div id="scrim" class="scrim" hidden></div>
     <div id="focus" class="focus" hidden><div id="focus-holder" class="focus-holder" role="dialog" aria-modal="true" aria-label="Expanded chart"></div></div>
+    <div id="palette" class="palette" hidden></div>
+    <div id="idle" class="idle" hidden></div>
     <div id="modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" hidden></div>
     <div id="tip" class="tip" role="tooltip" hidden></div>
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>

@@ -26,7 +26,7 @@ export async function api(path, { auth = true } = {}) {
     if (auth) {
         const token = await getToken();
         if (!token) {
-            onSignedOut();
+            onSignedOut("expired");
             throw new ApiError("Not signed in", 401);
         }
         headers.Authorization = "Bearer " + token;
@@ -34,7 +34,7 @@ export async function api(path, { auth = true } = {}) {
     const res = await fetch(window.SIEM_CONFIG.apiUrl + path, { headers });
     if (res.status === 401) {
         clearSession();
-        onSignedOut();
+        onSignedOut("expired");
         throw new ApiError("Session expired", 401);
     }
     const body = await res.json().catch(() => ({}));

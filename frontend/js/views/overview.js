@@ -4,6 +4,7 @@ import * as data from "../data.js";
 import { el, SEVERITIES, sevClass, shortDate, techName, countUp } from "../dom.js";
 import { stackedArea, donut, legend } from "../charts.js";
 import { panel, pageHead, incidentTable } from "./ui.js";
+import { trendExplain, techniqueExplain } from "../explain.js";
 
 function delta(now, before, days) {
     if (days === 0) return el("p", { class: "delta", text: "Since the first detection" });
@@ -100,7 +101,10 @@ export function mount(root, ctx) {
             renderKpis(summary, days, soft);
             sub.textContent = "CloudTrail detections · " + (days === 0 ? "all time" : shortDate(new Date(summary.rows[0].day + "T00:00:00Z")) + " – " + shortDate(new Date(summary.rows[summary.rows.length - 1].day + "T00:00:00Z")));
             if (summary.now.total === 0) trendCard.empty("No incidents in this range");
-            else trendCard.show(el("div", {}, [legend(), stackedArea(summary.rows, "Incidents per day by severity, last " + summary.rows.length + " days")]));
+            else {
+                trendCard.show(el("div", {}, [legend(), stackedArea(summary.rows, "Incidents per day by severity, last " + summary.rows.length + " days")]));
+                trendCard.explain(trendExplain(summary.rows));
+            }
             trendCard.note((t.generatedAt ? "Computed " + new Date(t.generatedAt * 1000).toISOString().slice(11, 16) + " UTC. Recomputed when a new incident arrives." : "")
                 + (days === 0 ? " The totals above are for all time; this chart shows the last " + data.API_MAX_DAYS + " days, the most the API reports." : ""));
         } catch (err) {
@@ -118,6 +122,7 @@ export function mount(root, ctx) {
             const rows = res.data.slice(0, 6).map((r) => ({ label: r.technique, sub: techName(r.technique), value: Number(r.incidents) }));
             const total = summary ? summary.now.total : rows.reduce((n, r) => n + r.value, 0);
             mitreCard.show(rows.length ? donut(rows, total, "incidents", "Top MITRE techniques") : el("div", { class: "empty", text: "No data in this range" }));
+            mitreCard.explain(techniqueExplain(rows));
         }, { soft });
 
         try {

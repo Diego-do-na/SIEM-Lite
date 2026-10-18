@@ -87,7 +87,21 @@ export function clearSession() {
     sessionStorage.clear();
 }
 
-export function logout() {
+// Why the session ended, kept for the login screen. localStorage because the Cognito logout leaves and comes back to this page
+export function rememberSignOut(reason) {
+    try { localStorage.setItem("siem-signout", reason); } catch (e) { /* ignore */ }
+}
+
+export function takeSignOutReason() {
+    try {
+        const reason = localStorage.getItem("siem-signout");
+        localStorage.removeItem("siem-signout");
+        return reason;
+    } catch (e) { return null; }
+}
+
+export function logout(reason = "signed-out") {
+    rememberSignOut(reason);
     sessionStorage.clear();
     const params = new URLSearchParams({ client_id: cfg().clientId, logout_uri: redirectUri() });
     window.location.href = cfg().loginUrl + "/logout?" + params.toString();
