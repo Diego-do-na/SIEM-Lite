@@ -45,6 +45,14 @@ export function mount(root, ctx) {
     ]);
     root.append(pageHead("Incidents", "Every detection, with the filters of the API"), filtersCard, tableCard);
 
+    // Links such as #/incidents?technique=T1485 arrive with filters already set
+    const fromLink = ctx.query || new URLSearchParams();
+    [["severity", severity], ["technique", technique], ["user", user], ["ip", ip]].forEach(([name, input]) => {
+        const v = fromLink.get(name);
+        if (v) input.value = name === "severity" ? v.toUpperCase() : v.slice(0, 64);
+    });
+    if (severity.value !== (fromLink.get("severity") || "").toUpperCase() && fromLink.get("severity")) severity.value = "";
+
     // What the list on screen was asked with. Typing in the form changes nothing until Search is pressed,
     // and the automatic refresh keeps using these, not whatever is half typed
     function snapshot() {

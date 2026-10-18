@@ -3,12 +3,11 @@
 import * as auth from "./auth.js";
 import { enableMock, isMock, setSignedOutHandler } from "./api.js";
 import * as data from "./data.js";
-import { openIncident, closeDrawer } from "./drawer.js";
 import { $, el, icon, ICONS, brandMark, clock, plural, reducedMotion } from "./dom.js";
 
 const ROUTES = [
     { id: "overview", label: "Overview", icon: ICONS.overview, range: true, load: () => import("./views/overview.js") },
-    { id: "incidents", label: "Incidents", icon: ICONS.incidents, range: false, load: () => import("./views/incidents.js") },
+    { id: "incidents", label: "Incidents", icon: ICONS.incidents, range: false, load: () => import("./views/incidents.js"), detail: () => import("./views/incident.js") },
     { id: "analytics", label: "Analytics", icon: ICONS.analytics, range: true, load: () => import("./views/analytics.js") },
     { id: "reports", label: "Reports", icon: ICONS.reports, range: false, soon: true, load: () => import("./views/reports.js") },
     { id: "settings", label: "Settings", icon: ICONS.settings, range: false, soon: true, load: () => import("./views/settings.js") }
@@ -16,7 +15,7 @@ const ROUTES = [
 
 const app = {
     days: 30, view: null, route: null, nav: 0,
-    pollTimer: null, clockTimer: null, polling: false, started: false,
+    pollTimer: null, clockTimer: null, polling: false, started: false, visited: 0,
     lastOk: null, online: true, total: null, toastTimer: null
 };
 
@@ -70,9 +69,11 @@ function setCollapsed(on) {
 
 // ---------- Routing ----------
 
+// #/incidents/HIGH/1760000000?technique=T1485  ->  route, param "HIGH/1760000000", query
 function routeFromHash() {
-    const [id, param] = window.location.hash.replace(/^#\/?/, "").split("?")[0].split("/");
-    return { route: ROUTES.find((r) => r.id === id) || ROUTES[0], param: param || "" };
+    const [path, search] = window.location.hash.replace(/^#\/?/, "").split("?");
+    const [id, ...rest] = path.split("/");
+    return { route: ROUTES.find((r) => r.id === id) || ROUTES[0], param: rest.join("/"), query: new URLSearchParams(search || "") };
 }
 
 function renderNav(active) {
@@ -83,25 +84,28 @@ function renderNav(active) {
 
 const ctx = {
     days: () => app.days,
-    openIncident: (severity, timestamp) => openIncident(severity, timestamp, document.activeElement)
+    // An incident opens as a page of its own; the browser's back button returns to where the user was
+    openIncident: (severity, timestamp) => { window.location.hash = "#/incidents/" + encodeURIComponent(severity) + "/" + encodeURIComponent(timestamp); },
+    canGoBack: () => app.visited > 1
 };
 
 async function showRoute(firstLoad) {
-    const { route, param } = routeFromHash();
+    const { route, param, query } = routeFromHash();
+    app.visited++;
     const token = ++app.nav;
     if (app.view) app.view.destroy();
     app.view = null;
-    closeDrawer();
     app.route = route;
     renderNav(route);
-    $("#crumb").textContent = route.label;
+    const asDetail = Boolean(param && route.detail);
+    $("#crumb").textContent = route.label + (asDetail ? " / Incident" : "");
     $("#range").hidden = !route.range;
     document.title = route.label + " · SIEM Lite";
     const view = $("#view");
     view.replaceChildren();
-    const module = await route.load();
+    const module = await (asDetail ? route.detail() : route.load());
     if (token !== app.nav) return; // the user already moved on
-    app.view = module.mount(view, Object.assign({ param }, ctx));
+    app.view = module.mount(view, Object.assign({ param, query }, ctx));
     if (!firstLoad) {
         window.scrollTo(0, 0);
         view.focus({ preventScroll: true });

@@ -3,18 +3,9 @@
 // no DOM: the views only draw what these return.
 
 import { SEVERITIES, userShort } from "./dom.js";
+import { tacticOf } from "./mitre.js";
 
-// MITRE ATT&CK tactic of each technique the detection rules emit. Anything else is "Other"
-const TACTICS = {
-    "T1562.008": "Defense Evasion",
-    "T1562.007": "Defense Evasion",
-    "T1485": "Impact",
-    "T1110": "Credential Access",
-    "T1078.004": "Initial Access",
-    "T1098.001": "Persistence",
-    "T1530": "Collection"
-};
-export const tacticOf = (id) => TACTICS[id] || "Other";
+export { tacticOf };
 
 export const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 // Rows of the heatmap start on Monday

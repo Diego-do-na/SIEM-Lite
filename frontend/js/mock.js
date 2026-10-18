@@ -1,8 +1,13 @@
 // Demo data for the dashboard, answered through the same paths as the real API.
 // Open the page with ?mock=1 (also ?mock=empty for no incidents, ?mock=error for failing reports).
 // Generated with a fixed seed, so the same numbers appear every time.
+//
+// The incidents follow the real rules: the actions, weights, techniques and automatic responses come from
+// js/mitre.js (a copy of the backend tables), and the score of an incident is the sum of its actions.
 
 import { ApiError } from "./api.js";
+import { ACTIONS, actionInfo } from "./mitre.js";
+import { sevOfScore } from "./dom.js";
 
 const ACCOUNT = "123456789012";
 const PEOPLE = [
@@ -12,18 +17,50 @@ const PEOPLE = [
     { user: "m.rodriguez", ip: "203.0.113.108" },
     { user: "admin01", ip: "198.51.100.230" }
 ];
-const BANDS = { LOW: [20, 199], MEDIUM: [200, 399], HIGH: [400, 599], CRITICAL: [600, 880] };
 const SEV_ORDER = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
-const TECHNIQUES = {
-    "T1562.008": { actions: ["StopLogging", "UpdateTrail"], response: "CloudTrail logging restarted" },
-    "T1562.007": { actions: ["AuthorizeSecurityGroupIngress", "CreateSecurityGroup"], response: null },
-    "T1485": { actions: ["DisableKey", "ScheduleKeyDeletion"], response: "KMS key re-enabled" },
-    "T1110": { actions: ["ListAccessKeys", "GetUser", "AttachUserPolicy"], response: null },
-    "T1078.004": { actions: ["ConsoleLogin", "GetCallerIdentity"], response: null },
-    "T1530": { actions: ["GetObject", "ListBuckets"], response: null }
+// Region of the activity, weighted: the system lives in Oregon, a few calls come from other regions
+const REGIONS = [["us-west-2", 55], ["us-east-1", 20], ["eu-west-1", 10], ["ap-southeast-1", 7], ["sa-east-1", 5], ["eu-central-1", 3]];
+const SOURCES = {
+    cloudtrail: "cloudtrail.amazonaws.com", kms: "kms.amazonaws.com", ec2: "ec2.amazonaws.com", iam: "iam.amazonaws.com"
 };
-const LOW_TECHNIQUES = ["T1110", "T1110", "T1110", "T1078.004", "T1078.004", "T1530"];
-const HIGH_TECHNIQUES = ["T1562.008", "T1562.007", "T1485", "T1110", "T1078.004", "T1530"];
+const sourceOf = (action) => {
+    const t = (ACTIONS[action] || {}).technique;
+    if (t === "T1562.008") return SOURCES.cloudtrail;
+    if (t === "T1485") return SOURCES.kms;
+    if (t === "T1562.007") return SOURCES.ec2;
+    return SOURCES.iam;
+};
+// Denied calls the rules do not recognise: each adds the base weight (40) and gets the generic T1110 label
+const DENIED = ["ListAccessKeys", "GetUser", "ListUsers", "GetLoginProfile", "ListAttachedUserPolicies"];
+
+// What each severity looks like. [action, min calls, max calls]; noise adds a few denied calls on top
+const SCENARIOS = {
+    LOW: [
+        { actions: [["RevokeSecurityGroupEgress", 1, 1]], noise: 2 },
+        { actions: [["RevokeSecurityGroupIngress", 1, 1]], noise: 1 },
+        { actions: [["CreateSecurityGroup", 1, 1]], noise: 0 },
+        { actions: [], noise: 3, denied: [2, 4] },
+        { actions: [], noise: 3, denied: [1, 3] }
+    ],
+    MEDIUM: [
+        { actions: [["AuthorizeSecurityGroupIngress", 1, 1]], noise: 2 },
+        { actions: [["UpdateTrail", 1, 1]], noise: 2 },
+        { actions: [["DeleteSecurityGroup", 1, 1]], noise: 1 },
+        { actions: [], noise: 0, denied: [5, 8] }
+    ],
+    HIGH: [
+        { actions: [["StopLogging", 1, 1]], noise: 3 },
+        { actions: [["DeleteTrail", 1, 1]], noise: 2 },
+        { actions: [["DisableKey", 1, 1]], noise: 2 },
+        { actions: [["ScheduleKeyDeletion", 1, 1]], noise: 3 }
+    ],
+    CRITICAL: [
+        { actions: [["StopLogging", 1, 1], ["AuthorizeSecurityGroupIngress", 1, 2]], noise: 2 },
+        { actions: [["DeleteTrail", 1, 1], ["ScheduleKeyDeletion", 1, 1]], noise: 2 },
+        { actions: [["StopLogging", 1, 1], ["DisableKey", 1, 1]], noise: 1 },
+        { actions: [["DisableKey", 1, 1], ["DeleteSecurityGroup", 1, 2], ["UpdateTrail", 1, 1]], noise: 1 }
+    ]
+};
 
 let mode = "1";
 let incidents = [];
@@ -47,36 +84,74 @@ function rng(seed) {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const hex = (rand, n) => Array.from({ length: n }, () => Math.floor(rand() * 16).toString(16)).join("");
 
+// The data is generated from a moment kept for the tab, so reloading the page (or following an incident link) shows the same incidents
+function anchor() {
+    const fresh = Math.floor(Date.now() / 1000);
+    try {
+        const saved = Number(sessionStorage.getItem("siem-mock-now"));
+        if (saved && fresh - saved < 7 * 86400) return saved;
+        sessionStorage.setItem("siem-mock-now", String(fresh));
+    } catch (e) { /* storage blocked: the data simply changes on reload */ }
+    return fresh;
+}
+
 function build() {
     const rand = rng(20261018);
     const pick = (list) => list[Math.floor(rand() * list.length)];
-    const now = Math.floor(Date.now() / 1000);
+    const between = (lo, hi) => lo + Math.floor(rand() * (hi - lo + 1));
+    const now = anchor();
     const list = [];
 
-    function make(ts, severity, forced) {
-        const [lo, hi] = BANDS[severity];
-        const score = Math.round(lo + rand() * (hi - lo));
+    function region() {
+        let r = rand() * 100;
+        for (const [name, w] of REGIONS) { r -= w; if (r < 0) return name; }
+        return REGIONS[0][0];
+    }
+
+    function make(ts, severity, scenario) {
+        const plan = scenario || pick(SCENARIOS[severity]);
         const person = pick(PEOPLE);
-        // Tampering with logs or keys only shows up in the higher severities, as the detection rules score it
-        const pool = severity === "CRITICAL" || severity === "HIGH" ? HIGH_TECHNIQUES : LOW_TECHNIQUES;
-        const main = forced || pick(pool);
-        const techniques = rand() < 0.3 ? [main, pick(pool)].filter((t, i, a) => a.indexOf(t) === i).sort() : [main];
-        const dur = 40 + Math.floor(rand() * 600);
-        const critical = techniques.some((t) => TECHNIQUES[t].response);
-        const response = critical && (severity === "CRITICAL" || severity === "HIGH");
+        const calls = {};
+        plan.actions.forEach(([name, lo, hi]) => { calls[name] = between(lo, hi); });
+        const denied = plan.denied ? between(plan.denied[0], plan.denied[1]) : 0;
+        const extra = denied || between(0, plan.noise || 0);
+        for (let k = 0; k < extra; k++) { const name = pick(DENIED); calls[name] = (calls[name] || 0) + 1; }
+        const home = region();
         const actions = {};
-        techniques.forEach((t) => TECHNIQUES[t].actions.slice(0, 1 + Math.floor(rand() * 3)).forEach((a) => { actions[a] = 1 + Math.floor(rand() * 6); }));
+        let score = 0;
+        Object.entries(calls).forEach(([name, count]) => {
+            const points = actionInfo(name).weight * count;
+            score += points;
+            actions[name] = { count, score: points, awsRegion: ACTIONS[name] && rand() < 0.15 ? "us-west-2" : home, eventSource: sourceOf(name) };
+        });
+        const techniques = [...new Set(Object.keys(calls).map((a) => actionInfo(a).technique))].sort();
+        // The response Lambda answers the critical actions; DeleteTrail can fail when AWS Config has no history
+        const defensive = [];
+        Object.keys(calls).forEach((name) => {
+            const info = ACTIONS[name];
+            if (!info || !info.soar) return;
+            const failed = name === "DeleteTrail" && rand() < 0.2;
+            defensive.push({
+                action: name, success: !failed, timestamp: ts + between(2, 20),
+                targetResource: name === "StopLogging" || name === "DeleteTrail" ? "arn:aws:cloudtrail:" + home + ":" + ACCOUNT + ":trail/siem-lite-trail" : "key/" + hex(rand, 8) + "-" + hex(rand, 4) + "-" + hex(rand, 4) + "-" + hex(rand, 12),
+                detail: failed ? "No configuration history found in AWS Config for this trail, cannot recreate"
+                    : name === "StopLogging" ? "Trail logging restarted successfully"
+                        : name === "DeleteTrail" ? "Trail recreated and logging verified active"
+                            : name === "DisableKey" ? "KMS key re-enabled successfully" : "KMS key deletion canceled successfully"
+            });
+        });
+        const dur = 40 + Math.floor(rand() * 600);
         return {
             incidentId: hex(rand, 8) + "-" + hex(rand, 4) + "-" + hex(rand, 4) + "-" + hex(rand, 4) + "-" + hex(rand, 12),
-            severity, timestamp: ts, globalScore: score, sourceIPAddress: person.ip,
+            severity: sevOfScore(score), timestamp: ts, globalScore: score, sourceIPAddress: person.ip,
             userIdentity: "arn:aws:iam::" + ACCOUNT + ":user/" + person.user,
             mitreTechniques: techniques, duration: dur, firstSeen: ts - dur, lastSeen: ts,
-            responseTaken: response, _actions: actions
+            responseTaken: defensive.some((d) => d.success), awsRegion: home, _actions: actions, _defensive: defensive
         };
     }
 
     // One critical incident in the last hour, so the table opens with something to look at
-    list.push(make(now - 540, "CRITICAL", "T1562.008"));
+    list.push(make(now - 540, "CRITICAL", SCENARIOS.CRITICAL[0]));
     for (let d = 0; d < 90; d++) {
         const weekday = new Date((now - d * 86400) * 1000).getUTCDay();
         const base = weekday === 0 || weekday === 6 ? 5 : 12;
@@ -111,30 +186,30 @@ export function configure(m) {
     if (mode === "1" && !liveTimer) liveTimer = setInterval(addLive, LIVE_EVERY_MS);
 }
 
+// The list items carry awsRegion here so the region map can be previewed. The real list endpoint does not return it yet (planned for 1.1)
 const summarize = (i) => ({
     incidentId: i.incidentId, severity: i.severity, timestamp: i.timestamp, globalScore: i.globalScore,
     sourceIPAddress: i.sourceIPAddress, userIdentity: i.userIdentity, mitreTechniques: i.mitreTechniques,
-    duration: i.duration, responseTaken: i.responseTaken
+    duration: i.duration, responseTaken: i.responseTaken, awsRegion: i.awsRegion
 });
 
 function detail(i) {
     const user = i.userIdentity.split("/").pop();
     const names = Object.keys(i._actions);
     const actionCounts = {};
-    const total = i.globalScore;
-    const weights = names.map((n) => i._actions[n]);
-    const wsum = weights.reduce((a, b) => a + b, 0) || 1;
-    names.forEach((n, idx) => {
-        actionCounts[n] = { count: i._actions[n], score: Math.round((weights[idx] / wsum) * total), awsRegion: "us-east-1", eventSource: "aws.demo" };
-    });
-    const tech = TECHNIQUES[i.mitreTechniques[0]];
+    names.forEach((n) => { actionCounts[n] = { ...i._actions[n] }; });
+    const total = names.reduce((n, a) => n + i._actions[a].count, 0);
+    const main = names.slice().sort((a, b) => i._actions[b].score - i._actions[a].score)[0];
+    const failed = i._defensive.filter((d) => !d.success);
+    const paragraphs = [
+        "The activity matches MITRE ATT&CK " + i.mitreTechniques.join(", ") + ". The heaviest call is " + main + " from " + user + " at " + i.sourceIPAddress + ". The score adds the weight of each action: it shows how serious the actions are, not whether the intent was malicious.",
+        i._defensive.length ? (failed.length ? "The automated response ran but did not finish: " + failed[0].detail + ". Manual action is needed. Confirm the state of the resource and review the credentials of " + user + "."
+            : "The automated response restored the affected resource. Validate the change with the owner of " + user + " and review recent credentials before closing the incident.")
+            : "No automated response applies to these actions. Review the activity with the owner of " + user + " if it is unexpected."
+    ];
     return {
         ...summarize(i), firstSeen: i.firstSeen, lastSeen: i.lastSeen, actionCounts, configChanges: {},
-        defensiveActions: i.responseTaken && tech.response ? [{ action: "remediate", success: true, detail: tech.response }] : [],
-        insights: user + " made " + names.reduce((n, a) => n + i._actions[a], 0) + " API calls from " + i.sourceIPAddress + ", including " + names.join(", ") + ".\n\n"
-            + "The sequence is consistent with MITRE technique " + i.mitreTechniques[0] + ". Intent is not confirmed; the score reflects the weight of the actions seen in a 15 minute window.\n\n"
-            + (i.responseTaken ? "The automated response restored the affected resource. Validate the activity with the owner of the account and review recent credentials before closing the incident."
-                : "No automated response was needed. Review the activity with the owner of the account if it is unexpected.")
+        defensiveActions: i._defensive.map((d) => ({ ...d })), insights: paragraphs.join("\n\n")
     };
 }
 
