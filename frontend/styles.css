@@ -589,12 +589,11 @@ a:hover { text-decoration: underline; }
 .mx-tech.hot .mx-count { color: var(--text); }
 .mx-legend { margin-top: 12px; color: var(--text-3); font-size: 12.5px; }
 
-/* ---------- Parameters bar and per-block stamps ---------- */
+/* ---------- Parameters bar ---------- */
 .params { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 30px; padding: 9px 32px; background: var(--card-2); border-bottom: 1px solid var(--border); }
 .param { display: grid; gap: 1px; }
 .param small { font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-3); }
 .param b { font: 500 12.5px var(--mono); color: var(--text); }
-.stamp { align-self: flex-start; padding-top: 3px; font: 400 11px var(--mono); color: var(--text-3); white-space: nowrap; }
 @media (max-width: 960px) { .params { padding-inline: 20px; } }
 @media (max-width: 720px) { .params { padding: 8px 16px; gap: 8px 18px; } .param:nth-of-type(n+3) { display: none; } }
 

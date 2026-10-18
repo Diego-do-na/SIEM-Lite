@@ -1,7 +1,7 @@
 // Shared building blocks for the views: cards with loading, error and empty states,
 // and the incident table used by Overview and Incidents.
 
-import { el, icon, ICONS, sevBadge, sevClass, relTime, relTimeShort, fullDate, clock, userShort, techName, attachTip, fmtNum } from "../dom.js";
+import { el, icon, ICONS, sevBadge, sevClass, relTime, relTimeShort, fullDate, userShort, techName, attachTip, fmtNum } from "../dom.js";
 import { emptyBlock } from "../charts.js";
 import { openFocus, closeFocus } from "../focus.js";
 import { explainView } from "../explain.js";
@@ -16,14 +16,12 @@ export function panel({ title, sub, className = "", minHeight = 200, action, exp
     const subNode = sub ? el("p", { class: "sub", text: sub }) : null;
     const body = el("div", { class: "panel-body" });
     const foot = el("p", { class: "panel-foot" });
-    // When this block was last drawn, like the timestamp on every tile of a SIEM console
-    const stamp = el("span", { class: "stamp", hidden: true });
     const expandBtn = expandable ? el("button", { class: "icon-btn ghost small expand-btn", type: "button", "aria-label": "Expand " + title, title: "Expand" }, [icon(ICONS.expand)]) : null;
     const closeBtn = expandable ? el("button", { class: "icon-btn close-btn", type: "button", "aria-label": "Close expanded view", title: "Close (Esc)", onclick: () => closeFocus() }, [icon(ICONS.close)]) : null;
     // What the card explains about itself; only visible once it is expanded (see .explain in styles.css)
     const explainBox = el("div", { class: "explain" });
     const root = el("section", { class: "card panel " + className + (expandable ? " expandable" : "") }, [
-        el("header", { class: "panel-head" }, [el("div", {}, [el("h2", { text: title }), subNode]), el("div", { class: "panel-tools" }, [action || null, stamp, expandBtn, closeBtn])]),
+        el("header", { class: "panel-head" }, [el("div", {}, [el("h2", { text: title }), subNode]), el("div", { class: "panel-tools" }, [action || null, expandBtn, closeBtn])]),
         body,
         foot,
         explainBox
@@ -60,8 +58,6 @@ export function panel({ title, sub, className = "", minHeight = 200, action, exp
                 const data = await loader();
                 if (run !== api._run) return;
                 render(data);
-                stamp.textContent = clock(Date.now() / 1000);
-                stamp.hidden = false;
             } catch (err) {
                 if (run !== api._run) return;
                 if (soft) return;

@@ -15,7 +15,11 @@ const PEOPLE = [
     { user: "j.wilson", ip: "198.51.100.17" },
     { user: "svc-backup", ip: "192.0.2.86" },
     { user: "m.rodriguez", ip: "203.0.113.108" },
-    { user: "admin01", ip: "198.51.100.230" }
+    { user: "admin01", ip: "198.51.100.230" },
+    // Several people behind one office address, and one account used from a second address (travel, VPN)
+    { user: "a.torres", ip: "198.51.100.17" },
+    { user: "m.rodriguez", ip: "198.51.100.17" },
+    { user: "admin01", ip: "192.0.2.201" }
 ];
 const SEV_ORDER = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
 // Region of the activity, weighted: the system lives in Oregon, a few calls come from other regions
