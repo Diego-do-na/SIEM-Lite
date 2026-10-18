@@ -99,7 +99,7 @@ async function showRoute(firstLoad) {
     renderNav(route);
     const asDetail = Boolean(param && route.detail);
     $("#crumb").textContent = route.label + (asDetail ? " / Incident" : "");
-    $("#range").hidden = !route.range;
+    $("#params").hidden = !route.range;
     document.title = route.label + " · SIEM Lite";
     const view = $("#view");
     view.replaceChildren();
@@ -127,6 +127,7 @@ function renderLive() {
     const s = secondsAgo(app.lastOk);
     const ago = s < 5 ? "just now" : s < 60 ? s + "s ago" : Math.round(s / 60) + "m ago";
     $("#updated").textContent = (app.online ? "Live · updated " : "Offline · last update ") + ago;
+    $("#p-updated").textContent = clock(app.lastOk / 1000) + " UTC";
     live.classList.toggle("bad", !app.online);
     live.title = "Last update " + clock(app.lastOk / 1000) + " UTC. Checks for new incidents every "
         + pollSeconds() + " seconds while this tab is open.";
@@ -221,6 +222,7 @@ async function start() {
     $("#demo").hidden = !isMock();
 
     // The version has to be known before the first view asks for data
+    $("#p-poll").textContent = "every " + pollSeconds() + " s";
     await poll();
     await showRoute(true);
     stopTimers();
@@ -247,6 +249,7 @@ function bind() {
         const btn = e.target.closest("button");
         if (!btn) return;
         app.days = Number(btn.dataset.days);
+        $("#p-window").textContent = "Last " + app.days + " days · UTC";
         document.querySelectorAll("#range button").forEach((b) => b.setAttribute("aria-pressed", String(b === btn)));
         if (app.view) app.view.refresh();
     });
