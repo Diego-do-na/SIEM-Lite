@@ -5,16 +5,17 @@ import { enableMock, isMock, setSignedOutHandler } from "./api.js";
 import * as data from "./data.js";
 import { closeFocus } from "./focus.js";
 import { parseEntity } from "./links.js";
-import { initSearch, openSearch, shortcutLabel } from "./search.js";
+import { initSearch } from "./search.js";
 import { startIdle, stopIdle, idleMinutes, initAccountMenu, signOutNote } from "./session.js";
 import { $, el, icon, ICONS, brandMark, clock, plural, reducedMotion } from "./dom.js";
 
 const ROUTES = [
     { id: "overview", label: "Overview", icon: ICONS.overview, range: true, load: () => import("./views/overview.js") },
     { id: "incidents", label: "Incidents", icon: ICONS.incidents, range: false, load: () => import("./views/incidents.js"), detail: () => import("./views/incident.js") },
+    { id: "entities", label: "Entities", icon: ICONS.globe, range: true, load: () => import("./views/entities.js") },
     { id: "analytics", label: "Analytics", icon: ICONS.analytics, range: true, load: () => import("./views/analytics.js") },
-    // Reached from links on IPs and users (#/entity/ip/<ip>, #/entity/user/<name>), so it has no entry in the menu
-    { id: "entity", label: "Entity", icon: ICONS.incidents, range: false, nav: false, load: () => import("./views/entity.js") },
+    // The page of one address or user (#/entity/ip/<ip>, #/entity/user/<name>), reached from Entities or from any link on an IP or a user; it has no menu entry of its own
+    { id: "entity", label: "Entities", icon: ICONS.globe, range: false, nav: false, load: () => import("./views/entity.js") },
     { id: "response", label: "Response", icon: ICONS.shieldCheck, range: true, load: () => import("./views/response.js") },
     { id: "reports", label: "Reports", icon: ICONS.reports, range: false, soon: true, load: () => import("./views/reports.js") },
     { id: "settings", label: "Settings", icon: ICONS.settings, range: false, soon: true, load: () => import("./views/settings.js") }
@@ -85,7 +86,7 @@ function routeFromHash() {
 
 function renderNav(active) {
     $("#nav").replaceChildren(...ROUTES.filter((r) => r.nav !== false).map((r) => el("a", {
-        class: "nav-item", href: "#/" + r.id, title: r.label, "aria-current": r.id === (active.id === "entity" ? "incidents" : active.id) ? "page" : null
+        class: "nav-item", href: "#/" + r.id, title: r.label, "aria-current": r.id === (active.id === "entity" ? "entities" : active.id) ? "page" : null
     }, [icon(r.icon), el("span", { class: "nav-label", text: r.label }), r.soon ? el("span", { class: "nav-tag", text: "Soon" }) : null])));
 }
 
@@ -310,7 +311,7 @@ function bind() {
             const who = isMock() ? { name: "demo", groups: ["admin"] } : auth.claims();
             return { name: who.name, role: who.groups.includes("admin") ? "admin" : who.groups.includes("viewer") ? "viewer" : "", demo: isMock(), signedAt: app.signedAt || Date.now(), idleMinutes: idleMinutes() };
         },
-        { search: openSearch, shortcut: shortcutLabel(), theme: () => $("#theme").click(), signOut: () => signOut("signed-out") }
+        { theme: () => $("#theme").click(), signOut: () => signOut("signed-out") }
     );
     window.addEventListener("hashchange", () => { if (app.started) showRoute(false); });
 }

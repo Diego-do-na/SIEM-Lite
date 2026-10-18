@@ -5,7 +5,7 @@
 Detection, scoring, SOAR-lite, Bedrock triage, incremental analytics, read-only API with Cognito, static
 dashboard, Terraform + CI (validate, Checkov, protected `main`).
 
-The dashboard UI is built (overview, incident and entity pages, analytics with ATT&CK coverage, response page,
+The dashboard UI is built (overview, incident pages, entities with a page for each IP and user, analytics with ATT&CK coverage, response page,
 search, session handling) and runs on demo data (`?mock=1`).
 
 Remaining before tagging 1.0: validate against real AWS (apply, auth, API, ETL, Athena, dashboard, including the

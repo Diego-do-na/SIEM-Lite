@@ -209,7 +209,8 @@ export function histogram(rows, label) {
 // on top of the bands of the detection thresholds. Selecting a dot opens the incident.
 export function scoreTimeline(items, label, onOpen) {
     if (!items.length) return emptyBlock("No incidents");
-    const W = 640, H = 250, m = { t: 14, r: 16, b: 30, l: 42 };
+    // Drawn at the size it is shown (the page gives it the full width), so the text keeps its size
+    const W = window.innerWidth < 720 ? 480 : 1000, H = window.innerWidth < 720 ? 260 : 250, m = { t: 14, r: 16, b: 30, l: 42 };
     const iw = W - m.l - m.r, ih = H - m.t - m.b;
     const list = items.slice().sort((a, b) => a.timestamp - b.timestamp);
     const t0 = Number(list[0].timestamp);
