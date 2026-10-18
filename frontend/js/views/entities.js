@@ -39,7 +39,7 @@ export function mount(root, ctx) {
     const state = { kind: "ip", filter: "", shown: PAGE, items: null, truncated: false };
 
     const mapCard = panel({
-        title: "Regions", sub: "Where in AWS the activity happened", minHeight: 260,
+        title: "Regions", sub: "AWS regions the calls were made in, not where the addresses are", minHeight: 260,
         action: el("span", { class: "pill", title: "Region per incident is part of the 1.1 API. Until then it shows in demo data only.", text: "Preview" })
     });
 

@@ -106,7 +106,7 @@ export function mount(root, ctx) {
     const timelineCard = panel({ title: "Risk over time", sub: "Score of each incident · select a dot to open it", minHeight: 240 });
     const techCard = panel({ title: "Techniques", sub: "What this " + (kind === "ip" ? "address" : "identity") + " was doing", minHeight: 200, className: "top" });
     const relatedCard = panel({ title: kind === "ip" ? "IAM users behind this address" : "Addresses this user acted from", sub: kind === "ip" ? "Identities whose credentials made calls from it" : "Where the calls came from", minHeight: 200, className: "top" });
-    const mapCard = panel({ title: "Regions", sub: "Where in AWS it was active", minHeight: 200, action: el("span", { class: "pill", title: "Region per incident is part of the 1.1 API. Until then it shows in demo data only.", text: "Preview" }) });
+    const mapCard = panel({ title: "Regions", sub: kind === "ip" ? "AWS regions this address made calls to" : "AWS regions this user made calls in", minHeight: 200, action: el("span", { class: "pill", title: "Region per incident is part of the 1.1 API. Until then it shows in demo data only.", text: "Preview" }) });
     const table = incidentTable({ onOpen: ctx.openIncident });
     const tableCard = el("section", { class: "card panel table-card" }, [
         el("header", { class: "panel-head" }, [el("div", {}, [el("h2", { text: "Incidents" }), el("p", { class: "sub", text: "Newest first · select a row for details" })])]),
