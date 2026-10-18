@@ -88,7 +88,7 @@ function relatedList(kind, rows) {
 export function mount(root, ctx) {
     const entity = parseEntity(ctx.param);
     const head = el("div", { class: "inc-top" }, [
-        el("a", { class: "back", href: "#/incidents", onclick: (e) => { if (ctx.canGoBack()) { e.preventDefault(); history.back(); } } }, [icon(ICONS.chevronLeft), "Back"])
+        el("a", { class: "back", href: "#/entities", onclick: (e) => { if (ctx.canGoBack()) { e.preventDefault(); history.back(); } } }, [icon(ICONS.chevronLeft), "Back"])
     ]);
     const body = el("div", { class: "inc-body" });
     root.append(head, body);
@@ -104,8 +104,8 @@ export function mount(root, ctx) {
     document.title = value + " · SIEM Lite";
 
     const timelineCard = panel({ title: "Risk over time", sub: "Score of each incident · select a dot to open it", minHeight: 240 });
-    const techCard = panel({ title: "Techniques", sub: "What this " + (kind === "ip" ? "address" : "identity") + " was doing", minHeight: 200 });
-    const relatedCard = panel({ title: kind === "ip" ? "IAM users behind this address" : "Addresses this user acted from", sub: kind === "ip" ? "Identities whose credentials made calls from it" : "Where the calls came from", minHeight: 200 });
+    const techCard = panel({ title: "Techniques", sub: "What this " + (kind === "ip" ? "address" : "identity") + " was doing", minHeight: 200, className: "top" });
+    const relatedCard = panel({ title: kind === "ip" ? "IAM users behind this address" : "Addresses this user acted from", sub: kind === "ip" ? "Identities whose credentials made calls from it" : "Where the calls came from", minHeight: 200, className: "top" });
     const mapCard = panel({ title: "Regions", sub: "Where in AWS it was active", minHeight: 200, action: el("span", { class: "pill", title: "Region per incident is part of the 1.1 API. Until then it shows in demo data only.", text: "Preview" }) });
     const table = incidentTable({ onOpen: ctx.openIncident });
     const tableCard = el("section", { class: "card panel table-card" }, [
@@ -114,11 +114,20 @@ export function mount(root, ctx) {
     ]);
     const heroSlot = el("div", {});
 
+    // Wide chart first, then the two short lists side by side, then the map and the rows
+    const layout = () => body.replaceChildren(
+        heroSlot,
+        el("div", { class: "grid-1" }, [timelineCard.root]),
+        el("div", { class: "grid-2" }, [techCard.root, relatedCard.root]),
+        el("div", { class: "grid-1" }, [mapCard.root]),
+        tableCard
+    );
+
     async function load(soft = false) {
         const mine = ++run;
         if (!soft) {
             heroSlot.replaceChildren(el("div", { class: "skel", vars: { "--h": "170px" } }));
-            body.replaceChildren(heroSlot, el("div", { class: "grid-2" }, [timelineCard.root, techCard.root]), el("div", { class: "grid-2" }, [relatedCard.root, mapCard.root]), tableCard);
+            layout();
             [timelineCard, techCard, relatedCard, mapCard].forEach((c) => c.loading());
             table.loading(4);
         }
@@ -129,7 +138,7 @@ export function mount(root, ctx) {
                 message("No incidents found for " + value + ". It may be misspelled, or older than the incidents the API returns.", el("a", { class: "btn", href: "#/incidents", text: "Go to incidents" }));
                 return;
             }
-            if (!body.contains(heroSlot)) body.replaceChildren(heroSlot, el("div", { class: "grid-2" }, [timelineCard.root, techCard.root]), el("div", { class: "grid-2" }, [relatedCard.root, mapCard.root]), tableCard);
+            if (!body.contains(heroSlot)) layout();
             const items = res.items.slice().sort((a, b) => b.timestamp - a.timestamp);
             const rel = related(kind, items);
             const techs = techniques(items);

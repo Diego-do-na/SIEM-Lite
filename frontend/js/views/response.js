@@ -47,7 +47,7 @@ function leftToYou() {
             return el("tr", {}, [
                 el("td", {}, [el("b", { class: "mono", text: name })]),
                 el("td", { text: a.what }),
-                el("td", { class: "hide-sm" }, idea ? [idea[0], " ", el("span", { class: "pill planned", text: "Idea" })] : "–"),
+                el("td", { class: "hide-sm" }, idea ? idea[0] : "–"),
                 el("td", { class: "hide-sm muted", text: idea ? idea[1] : "" })
             ]);
         }))

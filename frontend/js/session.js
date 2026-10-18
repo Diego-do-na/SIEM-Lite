@@ -92,14 +92,14 @@ const since = (ms) => {
     return m < 1 ? "just now" : m < 60 ? plural(m, "minute") + " ago" : plural(Math.round(m / 60), "hour") + " ago";
 };
 
-// info: { name, role, demo, signedAt, idleMinutes }, actions: { search, theme, signOut }
+// info: { name, role, demo, signedAt, idleMinutes }, actions: { theme, signOut }
 export function initAccountMenu(getInfo, actions) {
     const button = $("#user-btn");
     const pop = $("#user-pop");
     let isOpen = false;
 
-    const item = (ic, label, run, hint) => el("button", { class: "pop-item", type: "button", role: "menuitem", onclick: () => { close(false); run(); } }, [
-        icon(ic), el("span", { text: label }), hint ? el("kbd", { text: hint }) : null
+    const item = (ic, label, run) => el("button", { class: "pop-item", type: "button", role: "menuitem", onclick: () => { close(false); run(); } }, [
+        icon(ic), el("span", { text: label })
     ]);
 
     function render() {
@@ -113,7 +113,6 @@ export function initAccountMenu(getInfo, actions) {
                 el("div", {}, [el("dt", { text: "Signed in" }), el("dd", { text: since(info.signedAt) })]),
                 el("div", {}, [el("dt", { text: "Inactivity limit" }), el("dd", { text: info.idleMinutes ? info.idleMinutes + " min, with a warning first" : "Off" })])
             ]),
-            item(ICONS.search, "Search", actions.search, actions.shortcut),
             item(ICONS.sun, "Switch theme", actions.theme),
             item(ICONS.logout, info.demo ? "End demo session" : "Sign out", actions.signOut)
         );

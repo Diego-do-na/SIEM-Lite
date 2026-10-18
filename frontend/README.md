@@ -33,7 +33,8 @@ The demo incidents follow the real rules (actions, weights, techniques and autom
 | `#/incidents` | `/incidents` with filters and keyset pagination (also `#/incidents?technique=T1485`) | live |
 | `#/incidents/<severity>/<timestamp>` | `/incidents/{severity}/{timestamp}`: one incident as a page, with the risk-score ring, score breakdown, SOAR response and timeline | live |
 | `#/analytics` | the four `/analytics/*` reports plus statistics computed from `/incidents` (see below), the ATT&CK coverage matrix, and a region map | live; the region map is a preview (the list endpoint has no `awsRegion` until 1.1) |
-| `#/entity/ip/<ip>`, `#/entity/user/<name>` | `/incidents` filtered to one address or IAM user (exact match checked in the browser): score over time, techniques, who or what it is tied to, regions, incidents. Reached from any IP or user in a table or chart | live; regions are a preview (see above) |
+| `#/entities` | every IP address and IAM user found in the incidents of the range, with the users behind each address (or the addresses of each user), incidents, highest score, mitigated share and last seen; filter and a switch between addresses and users, region map on top. A row opens the page of that entity | live; the map is a preview (see above) |
+| `#/entity/ip/<ip>`, `#/entity/user/<name>` | `/incidents` filtered to one address or IAM user (exact match checked in the browser): score over time, techniques, who or what it is tied to, regions, incidents. Reached from Entities or from any IP or user in a table or chart; it is a page of Entities in the menu | live; regions are a preview (see above) |
 | `#/response` | what the response Lambda does on its own (from `js/mitre.js`), mitigation rate by severity and by technique (computed from `/incidents`), what is only alerted, and two previews: ideas for more responses and the recovery-tag ("Protected resources") design | live for the figures; the last two cards are previews |
 | `#/reports`, `#/reports/<id>` | needs a reports endpoint (1.1). The list and each report are separate pages | layout only |
 | `#/settings` | needs richer `/health` and `POST /actions` (1.1) | layout only |
@@ -66,14 +67,14 @@ those tables are links.
 
 ## Search, entities and keyboard
 
-`Ctrl+K` (`Cmd+K` on a Mac), `/`, or the Search button opens a palette (`js/search.js`) to jump to a page, an IP address,
+`Ctrl+K` (`Cmd+K` on a Mac), `/`, or the Search button in the top bar opens a palette (`js/search.js`) to jump to a page, an IP address,
 an IAM user or a technique, or to send what you typed to the filters of the Incidents page. Addresses and users come from the
 latest 600 incidents, the same sample the Analytics cards use, so it needs no endpoint. Arrow keys move, Enter opens, Esc closes.
-Every IP and IAM user shown in a table is a link to its page; the page of an entity is `js/views/entity.js`.
+Every IP and IAM user shown in a table is a link to its page; the list of all of them is `js/views/entities.js` and the page of one is `js/views/entity.js`.
 
 ## Session
 
-The account menu (top right) shows who is signed in, since when and the inactivity limit, and has Sign out (`js/session.js`).
+The account menu (top right) shows who is signed in, since when and the inactivity limit, and has Switch theme and Sign out (`js/session.js`).
 After `idleMinutes` without activity (30 by default; set it in `config.js`, `0` turns it off) a dialog warns for 60 seconds, and
 then the session ends. Only the person's own input counts as activity, not the automatic refresh. When a session ends the login screen
 says why (signed out, expired, inactivity). The reason survives the Cognito logout redirect through a guarded `localStorage` key.
@@ -119,7 +120,7 @@ js/techchip.js        technique id button that opens the ATT&CK card
 js/worldmap.js        static world outline and AWS region positions (generated once from Natural Earth)
 fonts/                IBM Plex Sans and JetBrains Mono (self-hosted, SIL OFL licenses included)
 js/mock.js            demo data, loaded only with ?mock
-js/views/             overview, incidents, incident (page), entity (page), analytics, matrix, regionmap, response, reports, settings, shared UI
+js/views/             overview, incidents, incident (page), entities, entity (page), analytics, matrix, regionmap, response, reports, settings, shared UI
 ```
 
 ## Restyling
