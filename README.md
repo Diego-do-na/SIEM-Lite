@@ -33,6 +33,7 @@ A serverless, event-driven SIEM that runs entirely inside your own AWS account. 
 - [Documentation](#documentation)
 - [Roadmap](#roadmap)
 - [References](#references)
+- [License](#license)
 
 ---
 
@@ -556,3 +557,7 @@ docs/            architecture, api, security, deployment, testing, decisions, ro
 ## References
 
 Jammalamadaka, S. R., & Lund, U. J. (2006). *Circular statistics.* Encyclopedia of Statistical Sciences. Basis for the Rule 3 time-of-day anomaly signal.
+
+## License
+
+[MIT](LICENSE). You can use, modify and redistribute this project, including commercially, as long as the copyright notice is kept. It comes with no warranty: review the Terraform plan and the [security notes](docs/security.md) before running it in an account you care about.
