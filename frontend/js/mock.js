@@ -190,7 +190,7 @@ export function configure(m) {
     if (mode === "1" && !liveTimer) liveTimer = setInterval(addLive, LIVE_EVERY_MS);
 }
 
-// The list items carry awsRegion here so the region map can be previewed. The real list endpoint does not return it yet (planned for 1.1)
+// The list items carry awsRegion, as the real list endpoint does
 const summarize = (i) => ({
     incidentId: i.incidentId, severity: i.severity, timestamp: i.timestamp, globalScore: i.globalScore,
     sourceIPAddress: i.sourceIPAddress, userIdentity: i.userIdentity, mitreTechniques: i.mitreTechniques,

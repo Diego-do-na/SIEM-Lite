@@ -32,6 +32,13 @@ export function legend() {
         el("span", {}, [el("i", { class: "sev-dot", vars: { "--c": "var(--sev-" + sevClass(s) + ")" } }), s.charAt(0) + s.slice(1).toLowerCase()])));
 }
 
+// Pointer x in chart units (the viewBox), whatever the size and the letterboxing of the element
+function chartX(root, e, width) {
+    const ctm = root.getScreenCTM();
+    if (!ctm) return ((e.clientX - root.getBoundingClientRect().left) / root.getBoundingClientRect().width) * width;
+    return new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse()).x;
+}
+
 // Stacked area, one layer per severity (low at the bottom, critical on top)
 export function stackedArea(days, label) {
     const W = 640, H = 250, m = { t: 12, r: 12, b: 28, l: 38 };
@@ -68,10 +75,10 @@ export function stackedArea(days, label) {
     const guide = svg("line", { y1: m.t, y2: m.t + ih, class: "guide" });
     guide.setAttribute("visibility", "hidden");
     root.appendChild(guide);
-    const hit = svg("rect", { x: m.l, y: m.t, width: iw, height: ih, fill: "transparent" });
+    const hit = svg("rect", { x: m.l, y: m.t, width: iw, height: ih, fill: "transparent", "data-tip": "" });
     hit.addEventListener("mousemove", (e) => {
-        const box = root.getBoundingClientRect();
-        const px = ((e.clientX - box.left) / box.width) * W - m.l;
+        // The SVG can be letterboxed (focus mode), so the pointer goes through the real screen-to-chart matrix
+        const px = chartX(root, e, W) - m.l;
         const i = Math.max(0, Math.min(n - 1, Math.round((px / iw) * (n - 1))));
         const d = days[i];
         guide.setAttribute("x1", x(i));

@@ -99,7 +99,7 @@ variable "enable_event_rules" {
 }
 
 variable "dashboard_origins" {
-    description = "Origins allowed to call the API and to receive the Cognito login redirect, without a trailing slash"
+    description = "Extra origins allowed to call the API and to receive the Cognito login redirect (local development), without a trailing slash. The CloudFront address of the dashboard is added automatically"
     type = list(string)
     default = ["http://localhost:5173"]
 }

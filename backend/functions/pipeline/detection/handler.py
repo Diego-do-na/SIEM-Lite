@@ -138,11 +138,14 @@ def lambda_handler(event, context):
         userName = user_identity.get('userName')  # assumed roles and root don't have it
         userARN = user_identity['arn']
 
+        # Denied calls are logged with requestParameters set to null, so the key can exist with no value: `or {}` covers both cases
+        request_parameters = event['detail'].get('requestParameters') or {}
+
         # Trail Name if required for StopLogging
-        trail_name = event['detail'].get('requestParameters', {}).get('name')
+        trail_name = request_parameters.get('name')
 
         # KeyId if required for DisableKey and ScheduleKeyDeletion
-        key_id = event['detail'].get('requestParameters', {}).get('keyId')
+        key_id = request_parameters.get('keyId')
 
         table_name = os.environ.get('THRESHOLD_TABLE_NAME')
         table = dynamodb.Table(table_name)

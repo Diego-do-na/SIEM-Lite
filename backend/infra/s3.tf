@@ -3,6 +3,7 @@ locals {
         raw = aws_s3_bucket.raw.id
         processed = aws_s3_bucket.processed.id
         athena_results = aws_s3_bucket.athena_results.id
+        frontend = aws_s3_bucket.frontend.id
     }
 }
 

@@ -35,7 +35,7 @@ export function mount(root, ctx) {
     const trendCard = panel({ title: "Incidents over time", sub: "Daily detections by severity · UTC", minHeight: 250 });
     const mitreCard = panel({ title: "Top MITRE ATT&CK techniques", sub: "Incidents per technique", minHeight: 250 });
     const attackCard = panel({ title: "MITRE ATT&CK coverage", sub: "What the detection rules cover, by tactic · select a technique to read about it", minHeight: 200 });
-    const mapCard = panel({ title: "Activity by region", sub: "Where in AWS the activity happened · incidents per region", minHeight: 260, action: el("span", { class: "pill", title: "Region per incident is part of the 1.1 API. Until then it shows in demo data only.", text: "Preview" }) });
+    const mapCard = panel({ title: "Activity by region", sub: "Where in AWS the activity happened · incidents per region", minHeight: 260 });
     const heatCard = panel({ title: "When incidents happen", sub: "Weekday and hour of day · UTC", minHeight: 200 });
     const tacticCard = panel({ title: "MITRE tactics", sub: "What the attacker was trying to achieve", minHeight: 220 });
     const mitigationCard = panel({ title: "Automated response", sub: "Share of incidents mitigated, by severity", minHeight: 220 });

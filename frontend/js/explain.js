@@ -27,8 +27,10 @@ export function explainView(spec) {
         left.push(el("section", { class: "ex-block" }, [el("h3", { text: "What stands out" }), el("ul", { class: "ex-list" }, spec.findings.map((f) => el("li", { text: f })))]));
     }
     const parts = [];
-    if (left.length) parts.push(el("div", { class: "ex-left" }, left));
-    if (spec.table && spec.table.rows.length) {
+    const hasTable = !!(spec.table && spec.table.rows.length);
+    // Without a table there is nothing dynamic to show beside the text, so the explanation takes the full width and a larger size
+    if (left.length) parts.push(el("div", { class: "ex-left" + (hasTable ? "" : " ex-wide") }, left));
+    if (hasTable) {
         const t = spec.table;
         const num = new Set(t.num || []);
         parts.push(el("section", { class: "ex-block ex-data" }, [
@@ -80,8 +82,8 @@ export function trendExplain(rows) {
         findings,
         table: {
             head: ["Day (UTC)", "Critical", "High", "Medium", "Low", "Total"], num: [1, 2, 3, 4, 5],
-            rows: rows.slice().reverse().map((r) => [dayLabel(r.day), ...SEVERITIES.map((s) => fmtNum(r[s])), fmtNum(r.total)]),
-            note: "Newest day first."
+            rows: rows.filter((r) => r.total).reverse().map((r) => [dayLabel(r.day), ...SEVERITIES.map((s) => fmtNum(r[s])), fmtNum(r.total)]),
+            note: "Newest day first." + (rows.some((r) => !r.total) ? " Days without incidents are not listed." : "")
         }
     };
 }
@@ -130,7 +132,7 @@ export function coverageExplain(counts) {
     return {
         read: [
             "Each column is a tactic of the ATT&CK matrix for cloud environments: the goal the attacker has at that stage. The techniques inside it are the ways of reaching that goal.",
-            "A lit technique has a SIEM Lite rule, and the number is the incidents it raised in this range. A column that says \"No rule yet\" is something the detection does not look for today."
+            "A technique here has a SIEM Lite rule, and the number is the incidents it raised in this range. Tactics with no rule are not drawn as columns; they are listed under the matrix as the gaps."
         ],
         findings,
         table: {
@@ -149,7 +151,7 @@ export function regionExplain(items, nameOf = (r) => r) {
         "Each dot sits on an AWS region and grows with the number of incidents whose API call was made there. CloudTrail records the region of every call.",
         "Activity in a region you do not normally use is a classic sign of someone exploring with stolen credentials, so a new dot far from the usual one deserves a look."
     ];
-    if (!counts.size) return { read: read.concat("The incident list does not include the region yet; it arrives with the 1.1 API. The demo data already has it."), findings: [] };
+    if (!counts.size) return { read: read.concat("None of the incidents in this range has a region recorded, so there is nothing to place on the map. Incidents created before the region was stored do not show here."), findings: [] };
     const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1]);
     const total = sum(ranked.map(([, n]) => n));
     const findings = [
@@ -189,8 +191,8 @@ export function heatExplain(act) {
         findings,
         table: {
             head: ["Day", ...blocks.map((h) => hh(h).slice(0, 2) + "–" + hh(h + 4).slice(0, 2)), "Total"], num: [1, 2, 3, 4, 5, 6, 7],
-            rows: act.rows.map((row) => [row.label, ...blocks.map((h) => fmtNum(sum(row.cells.slice(h, h + 4)))), fmtNum(sum(row.cells))]),
-            note: "Incidents per block of four hours, UTC."
+            rows: act.rows.filter((row) => sum(row.cells)).map((row) => [row.label, ...blocks.map((h) => fmtNum(sum(row.cells.slice(h, h + 4)))), fmtNum(sum(row.cells))]),
+            note: "Incidents per block of four hours, UTC. Weekdays without incidents are not listed."
         }
     };
 }
@@ -317,7 +319,7 @@ export function scoreExplain(rows) {
             "A distribution weighted to the left is mostly small events. A tail on the right is the rare and serious part, and that is the part to read first."
         ],
         findings,
-        table: { head: ["Score range", "Severity", "Incidents", "Share"], num: [2, 3], rows: rows.map((r) => [r.low + " – " + r.high, sevName(sevOfScore(r.low)), fmtNum(r.value), pct(r.value, total)]) }
+        table: { head: ["Score range", "Severity", "Incidents", "Share"], num: [2, 3], rows: rows.filter((r) => r.value).map((r) => [r.low + " – " + r.high, sevName(sevOfScore(r.low)), fmtNum(r.value), pct(r.value, total)]), note: "Ranges without incidents are not listed." }
     };
 }
 
@@ -340,7 +342,7 @@ export function durationExplain(rows) {
             "The bar is the average. The median beside it is the middle value, which a few extreme incidents do not move, so comparing the two shows whether outliers are involved."
         ],
         findings,
-        table: { head: ["Severity", "Incidents", "Average", "Median"], num: [1, 2, 3], rows: rows.map((r) => [sevName(r.sev), fmtNum(r.count), r.count ? fmtDuration(r.avg) : "–", r.count ? fmtDuration(r.median) : "–"]) }
+        table: { head: ["Severity", "Incidents", "Average", "Median"], num: [1, 2, 3], rows: used.map((r) => [sevName(r.sev), fmtNum(r.count), fmtDuration(r.avg), fmtDuration(r.median)]), note: used.length < rows.length ? "Severities without incidents are not listed." : undefined }
     };
 }
 

@@ -48,29 +48,38 @@ def ddb(v):
     if isinstance(v, list): return {"L": [ddb(x) for x in v]}
     return {"M": {k: ddb(x) for k, x in v.items()}}
 
-def incident(severity, age, score, ip, user, techniques, actions, response):
+WEIGHTS = {"StopLogging": 400, "DeleteTrail": 400, "DisableKey": 400, "DeleteSecurityGroup": 240,
+           "AuthorizeSecurityGroupIngress": 200, "RevokeSecurityGroupIngress": 120, "AccessDenied": 40}
+SOURCES = {"StopLogging": "cloudtrail.amazonaws.com", "DeleteTrail": "cloudtrail.amazonaws.com", "DisableKey": "kms.amazonaws.com",
+           "AccessDenied": "s3.amazonaws.com"}
+
+def incident(severity, age, ip, user, techniques, actions, response, region):
+    # Same shape the detector writes: each action keeps its count, score, region and event source.
+    # The score is the sum of the weights, so it always matches the severity thresholds
     ts = now - age
+    scores = {a: WEIGHTS[a] * n for a, n in actions.items()}
     return {
         "severity": severity, "timestamp": ts, "incidentId": str(uuid.uuid4()),
-        "userIdentity": user, "sourceIPAddress": ip, "globalScore": score,
+        "userIdentity": user, "sourceIPAddress": ip, "globalScore": sum(scores.values()),
         "firstSeen": ts - 600, "lastSeen": ts, "duration": 600,
         "defensiveActions": [{"action": "restart_logging", "success": True}] if response else [],
         "mitreTechniques": techniques,
-        "actionCounts": {a: {"count": n} for a, n in actions.items()},
+        "actionCounts": {a: {"count": n, "score": scores[a], "awsRegion": region, "eventSource": SOURCES.get(a, "ec2.amazonaws.com")} for a, n in actions.items()},
         "configChanges": {},
-        "actionScores": {a: n * 10 for a, n in actions.items()},
+        "actionScores": scores,
         "insights": MARK,
     }
 
 USER = "arn:aws:iam::123456789012:user/test-user"
+# Only techniques SIEM Lite really emits: T1562.008 (logs), T1562.007 (firewall), T1485 (keys), T1110 (denied calls)
 items = [
-    incident("CRITICAL", 5 * 60,        520, "203.0.113.7",  USER, ["T1562.008"], {"StopLogging": 1}, True),
-    incident("HIGH",     3 * HOUR,      240, "203.0.113.7",  USER, ["T1562.008", "T1078"], {"DeleteTrail": 1, "ConsoleLogin": 4}, False),
-    incident("HIGH",     1 * DAY,       210, "198.51.100.9", USER, ["T1078"], {"ConsoleLogin": 9}, False),
-    incident("MEDIUM",   1 * DAY + HOUR, 120, "198.51.100.9", USER, ["T1078"], {"AccessDenied": 6}, False),
-    incident("MEDIUM",   2 * DAY,       90,  "192.0.2.44",   USER, ["T1580"], {"ListBuckets": 8}, False),
-    incident("LOW",      3 * DAY,       40,  "192.0.2.44",   USER, ["T1580"], {"AccessDenied": 3}, False),
-    incident("LOW",      5 * DAY,       30,  "203.0.113.7",  USER, ["T1078"], {"AccessDenied": 2}, False),
+    incident("CRITICAL", 5 * 60,         "203.0.113.7",  USER, ["T1110", "T1562.008"], {"StopLogging": 1, "AccessDenied": 11}, True,  "us-east-1"),
+    incident("HIGH",     3 * HOUR,       "203.0.113.7",  USER, ["T1110", "T1562.008"], {"DeleteTrail": 1, "AccessDenied": 1},  False, "us-east-1"),
+    incident("HIGH",     1 * DAY,        "198.51.100.9", USER, ["T1485"],              {"DisableKey": 1},                      False, "eu-west-1"),
+    incident("MEDIUM",   1 * DAY + HOUR, "198.51.100.9", USER, ["T1562.007"],          {"DeleteSecurityGroup": 1},             False, "eu-west-1"),
+    incident("MEDIUM",   2 * DAY,        "192.0.2.44",   USER, ["T1562.007"],          {"AuthorizeSecurityGroupIngress": 1},   False, "ap-southeast-1"),
+    incident("LOW",      3 * DAY,        "192.0.2.44",   USER, ["T1562.007"],          {"RevokeSecurityGroupIngress": 1},      False, "ap-southeast-1"),
+    incident("LOW",      5 * DAY,        "203.0.113.7",  USER, ["T1110"],              {"AccessDenied": 2},                    False, "us-east-1"),
 ]
 
 for item in items:

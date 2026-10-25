@@ -1,6 +1,5 @@
-// Region map (preview). Counts incidents per AWS region on a static world outline.
-// The list endpoint does not return the region yet (planned for 1.1), so on live data this shows an
-// explanation instead; the demo data includes it so the layout can be judged.
+// Region map. Counts incidents per AWS region on a static world outline.
+// The list endpoint returns awsRegion per incident (the region most of its calls were made in).
 
 import { el, svg, attachTip, fmtNum, plural } from "../dom.js";
 import { MAP_W, MAP_H, LAND, REGION_POINTS } from "../worldmap.js";
@@ -9,7 +8,7 @@ export function regionMap(items) {
     const counts = new Map();
     items.forEach((i) => { if (i.awsRegion) counts.set(i.awsRegion, (counts.get(i.awsRegion) || 0) + 1); });
     if (!counts.size) {
-        return el("div", { class: "empty", text: "The incident list does not include the region yet. It arrives with the 1.1 API; the demo data shows how this map will look." });
+        return el("div", { class: "empty", text: "None of the incidents in this range has a region recorded. Incidents created before the region was stored do not show here." });
     }
     const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1]);
     const peak = ranked[0][1];
