@@ -47,8 +47,8 @@ resource "aws_cognito_user_pool_client" "dashboard" {
     allowed_oauth_flows = ["code"]
     allowed_oauth_scopes = ["openid", "email"]
     supported_identity_providers = ["COGNITO"]
-    callback_urls = [for origin in var.dashboard_origins : "${origin}/"]
-    logout_urls = [for origin in var.dashboard_origins : "${origin}/"]
+    callback_urls = [for origin in local.dashboard_origins : "${origin}/"]
+    logout_urls = [for origin in local.dashboard_origins : "${origin}/"]
 
     # The admin flow signs every call with AWS credentials, so it is not a way in for anyone else.
     # Only enabled to get tokens from the CLI while testing

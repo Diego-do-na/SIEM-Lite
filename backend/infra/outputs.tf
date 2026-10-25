@@ -55,5 +55,10 @@ output "cognito_client_id" {
 
 output "cognito_login_url" {
     description = "Base URL of the Cognito hosted login page"
-    value = "https://${aws_cognito_user_pool_domain.this.domain}.auth.${var.aws_region}.amazoncognito.com"
+    value = local.cognito_login_url
+}
+
+output "frontend_url" {
+    description = "Where the dashboard is served (HTTPS, through CloudFront)"
+    value = local.frontend_origin
 }

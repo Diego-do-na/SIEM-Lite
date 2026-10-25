@@ -17,7 +17,7 @@ resource "aws_apigatewayv2_api" "this" {
     protocol_type = "HTTP"
 
     cors_configuration {
-        allow_origins = var.dashboard_origins
+        allow_origins = local.dashboard_origins
         allow_methods = ["GET", "OPTIONS"]
         allow_headers = ["authorization", "content-type"]
         max_age = 3600

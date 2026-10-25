@@ -18,6 +18,16 @@ MAX_TEXT_LENGTH = 64
 MAX_QUERY_PAGES = 50
 
 
+def region_of(item):
+    # The region most of the calls of the incident were made in (each action keeps the region of its events)
+    calls = {}
+    for group in ('actionCounts', 'configChanges'):
+        for details in (item.get(group) or {}).values():
+            if isinstance(details, dict) and details.get('awsRegion'):
+                calls[details['awsRegion']] = calls.get(details['awsRegion'], 0) + int(details.get('count', 1))
+    return max(calls, key=calls.get) if calls else None
+
+
 def summarize(item):
     # The list leaves out the long Bedrock text and the per-action detail, the detail route has them
     return {
@@ -29,6 +39,7 @@ def summarize(item):
         'userIdentity': item.get('userIdentity'),
         'mitreTechniques': item.get('mitreTechniques', []),
         'duration': item.get('duration'),
+        'awsRegion': region_of(item),
         'responseTaken': len(item.get('defensiveActions') or []) > 0
     }
 

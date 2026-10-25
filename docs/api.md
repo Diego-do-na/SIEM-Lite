@@ -56,13 +56,14 @@ Incidents newest-first across all severities (merged), keyset-paginated.
     {
       "incidentId": "…", "severity": "HIGH", "timestamp": 1760000000, "globalScore": 140,
       "sourceIPAddress": "203.0.113.7", "userIdentity": "arn:aws:iam::…:user/admin01",
-      "mitreTechniques": ["T1562.008"], "duration": 420, "responseTaken": true
+      "mitreTechniques": ["T1562.008"], "duration": 420, "awsRegion": "us-west-2", "responseTaken": true
     }
   ],
   "nextCursor": "eyJ0IjoxNzYw…"
 }
 ```
 
+`awsRegion` is the region where most of the calls of the incident were made (`null` for incidents stored before the region was kept).
 `nextCursor` is `null` on the last page. The list leaves out the Bedrock narrative and per-action detail;
 fetch those from the detail route.
 

@@ -37,7 +37,12 @@ terraform apply
 terraform output
 ```
 
-Outputs used later: `api_url`, `cognito_user_pool_id`, `cognito_client_id`, `cognito_login_url`.
+Outputs used later: `api_url`, `cognito_user_pool_id`, `cognito_client_id`, `cognito_login_url`, `frontend_url`.
+
+The dashboard is deployed by the same `apply`: private S3 bucket, CloudFront with Origin Access Control,
+security headers, and a `config.js` generated from the other resources. The first CloudFront deploy takes
+5-10 minutes. Open `frontend_url` to use it. Editing a file under `frontend/` and running `terraform apply`
+uploads the changed objects.
 
 ## First login
 

@@ -183,9 +183,11 @@ export function sevOfScore(score) {
 // ---------- Tooltip ----------
 
 const tip = () => document.getElementById("tip");
+let tipOwner = null;
 
 export function showTip(event, text) {
     const t = tip();
+    tipOwner = event.currentTarget || null;
     t.textContent = text;
     t.hidden = false;
     const x = Math.min(event.clientX + 14, window.innerWidth - t.offsetWidth - 8);
@@ -194,10 +196,21 @@ export function showTip(event, text) {
 }
 
 export function hideTip() {
+    tipOwner = null;
     tip().hidden = true;
 }
 
 export function attachTip(node, text) {
+    node.setAttribute("data-tip", "");
     node.addEventListener("mousemove", (e) => showTip(e, typeof text === "function" ? text() : text));
     node.addEventListener("mouseleave", hideTip);
 }
+
+// A live refresh redraws the page under a still pointer, and a removed node never fires mouseleave.
+// These three rules make sure a tooltip never outlives the thing it describes.
+document.addEventListener("mouseover", (e) => {
+    if (!(e.target instanceof Element) || !e.target.closest("[data-tip]")) hideTip();
+}, true);
+window.addEventListener("scroll", hideTip, true);
+window.addEventListener("blur", hideTip);
+setInterval(() => { if (tipOwner && !tipOwner.isConnected) hideTip(); }, 200);

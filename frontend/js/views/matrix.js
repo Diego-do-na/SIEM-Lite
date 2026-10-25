@@ -1,5 +1,5 @@
-// ATT&CK coverage matrix: the tactics of the cloud matrix as columns, and the techniques SIEM Lite has a rule for
-// lit inside them. The empty columns are on purpose: they show what the detection does not cover yet.
+// ATT&CK coverage matrix: one column for each tactic SIEM Lite has a rule for, with its techniques inside.
+// The tactics without a rule are not drawn as empty columns: they are named in plain text below, so the gaps stay visible.
 
 import { el, fmtNum, plural } from "../dom.js";
 import { TACTICS, TECHNIQUES } from "../mitre.js";
@@ -23,16 +23,22 @@ export function attackMatrix(counts) {
     const peak = Math.max(1, ...Object.values(counts));
     const covered = Object.values(TECHNIQUES);
     const litTactics = new Set(covered.map((t) => t.tactic));
-    const columns = TACTICS.map((tactic) => {
+    const withRules = TACTICS.filter((tactic) => litTactics.has(tactic.name));
+    const gaps = TACTICS.filter((tactic) => !litTactics.has(tactic.name));
+    const columns = withRules.map((tactic) => {
         const own = covered.filter((t) => t.tactic === tactic.name);
         const total = own.reduce((n, t) => n + (counts[t.id] || 0), 0);
-        return el("div", { class: "mx-col" + (own.length ? " on" : "") }, [
-            el("header", {}, [el("b", { text: tactic.name }), el("small", { text: tactic.id + (own.length ? " · " + fmtNum(total) : "") })]),
-            ...(own.length ? own.map((t) => techniqueCell(t, counts[t.id] || 0, peak)) : [el("div", { class: "mx-empty", text: "No rule yet" })])
+        return el("div", { class: "mx-col on" }, [
+            el("header", {}, [el("b", { text: tactic.name }), el("small", { text: tactic.id + " · " + fmtNum(total) })]),
+            ...own.map((t) => techniqueCell(t, counts[t.id] || 0, peak))
         ]);
     });
     return el("div", {}, [
-        el("div", { class: "mx-scroll" }, [el("div", { class: "mx" }, columns)]),
-        el("p", { class: "mx-legend", text: plural(covered.length, "technique") + " covered across " + litTactics.size + " of " + TACTICS.length + " tactics. The number on each technique is incidents in this range; a column that says \"No rule yet\" is not detected today." })
+        el("div", { class: "mx-scroll" }, [el("div", { class: "mx", vars: { "--cols": String(columns.length) } }, columns)]),
+        el("p", { class: "mx-legend", text: plural(covered.length, "technique") + " covered across " + litTactics.size + " of " + TACTICS.length + " tactics. The number on each technique is incidents in this range." }),
+        gaps.length ? el("div", { class: "mx-gaps" }, [
+            el("h4", { text: "Not covered yet" }),
+            el("p", { text: gaps.map((g) => g.name).join(", ") + ". SIEM Lite has no detection rule for these " + gaps.length + " tactics today, so an attacker at those stages would not raise an incident." })
+        ]) : null
     ]);
 }
