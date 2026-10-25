@@ -45,6 +45,7 @@ async function tokenRequest(body) {
 function saveTokens(tokens) {
     sessionStorage.setItem("access_token", tokens.access_token);
     sessionStorage.setItem("expires_at", String(Date.now() + (tokens.expires_in - 60) * 1000));
+    if (tokens.id_token) sessionStorage.setItem("id_token", tokens.id_token);
     if (tokens.refresh_token) sessionStorage.setItem("refresh_token", tokens.refresh_token);
 }
 
@@ -107,13 +108,19 @@ export function logout(reason = "signed-out") {
     window.location.href = cfg().loginUrl + "/logout?" + params.toString();
 }
 
-// Display only: the API Gateway authorizer is what actually enforces access
-export function claims() {
+// Display only: the API Gateway authorizer is what actually enforces access.
+// The access token carries the Cognito username (an opaque id), the e-mail only travels in the ID token
+function payload(key) {
     try {
-        const payload = sessionStorage.getItem("access_token").split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
-        const data = JSON.parse(atob(payload));
-        return { name: data.username || data.email || "user", groups: data["cognito:groups"] || [] };
+        const part = sessionStorage.getItem(key).split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+        return JSON.parse(atob(part));
     } catch (e) {
-        return { name: "user", groups: [] };
+        return {};
     }
+}
+
+export function claims() {
+    const access = payload("access_token");
+    const id = payload("id_token");
+    return { name: id.email || access.username || "user", groups: access["cognito:groups"] || [] };
 }
