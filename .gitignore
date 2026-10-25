@@ -20,3 +20,7 @@ oregon-backup/
 
 # third-party screenshots used only as design reference (not ours to publish)
 design-reference/
+
+# Terraform saved plans
+tfplan
+*.tfplan
